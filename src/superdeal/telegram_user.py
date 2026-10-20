@@ -78,7 +78,8 @@ class TelegramUserSource:
             self.api_hash,
             receive_updates=True,
             catch_up=False,
-            sequential_updates=True,
+            # Dispatch new channel events without serializing behind a slow deal pipeline.
+            sequential_updates=False,
         )
         if not self.client.is_connected():
             self.client.connect()
