@@ -120,13 +120,16 @@ def clean_price_evidence(facts):
     if not isinstance(facts, dict):
         return {'price': None, 'mrp': None, 'price_source': None, 'mrp_source': None}
     result = {'price': None, 'mrp': None, 'price_source': None, 'mrp_source': None}
-    for key, source in (('json_ld_price', 'json_ld_offer'), ('meta_price', 'product_meta')):
+    for key, source in (('json_ld_price', 'json_ld_offer'), ('meta_price', 'product_meta'),
+                        ('amazon_price', 'amazon_price_to_pay')):
         amount = parse_inr_price(facts.get(key))
         currency = facts.get(key + '_currency')
         if amount is not None and (currency is None or str(currency).upper() == 'INR'):
             result['price'], result['price_source'] = amount, source
             break
-    mrp = parse_inr_price(facts.get('mrp'))
+    mrp = parse_inr_price(facts.get('mrp') or facts.get('amazon_mrp'))
+    if mrp is not None and facts.get('mrp') is None:
+        facts = {**facts, 'mrp_source': 'amazon_basis_price'}
     if mrp is not None and (result['price'] is None or mrp >= result['price']):
         result['mrp'], result['mrp_source'] = mrp, facts.get('mrp_source', 'product_page')
     return result
@@ -195,6 +198,8 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                     brand: null,
                     heading: document.querySelector('h1')?.textContent?.trim() || null,
                     amazon_product_title: document.querySelector('#productTitle')?.textContent?.trim() || null,
+                    amazon_price: null,
+                    amazon_mrp: null,
                     meta_price: meta(['meta[property="product:price:amount"]',
                                       'meta[property="og:price:amount"]',
                                       'meta[itemprop="price"]']),
@@ -205,6 +210,25 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                     mrp: null,
                     mrp_source: null
                   };
+                  if (location.hostname === 'amazon.in' || location.hostname.endsWith('.amazon.in')) {
+                    const firstText = selectors => {
+                      for (const selector of selectors) {
+                        const value = document.querySelector(selector)?.textContent?.trim();
+                        if (value) return value;
+                      }
+                      return null;
+                    };
+                    facts.amazon_price = firstText([
+                      '#corePriceDisplay_desktop_feature_div .priceToPay .a-offscreen',
+                      '#corePrice_feature_div .priceToPay .a-offscreen',
+                      '#corePriceDisplay_desktop_feature_div .apexPriceToPay .a-offscreen',
+                      '#priceblock_dealprice', '#priceblock_ourprice'
+                    ]);
+                    facts.amazon_mrp = firstText([
+                      '#corePriceDisplay_desktop_feature_div .basisPrice .a-offscreen',
+                      '#corePrice_feature_div .basisPrice .a-offscreen'
+                    ]);
+                  }
                   for (const el of document.querySelectorAll('script[type="application/ld+json"]')) {
                     try {
                       const walk = value => {
