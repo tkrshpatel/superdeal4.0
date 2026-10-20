@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'superdeal_phase2_f
 import pytest
 
 from backend import Backend
-from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description
+from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description, select_product_name, browser_failure
 
 URL1 = "https://fkrt.cc/alpha"
 URL2 = "https://earnkaro.com/beta"
@@ -120,3 +120,26 @@ def test_flipkart_meta_description_preserves_only_product_copy():
 def test_description_fallback_does_not_change_other_retailers():
     assert select_description({'description': 'Genuine product description.'}, 'amazon.in') == 'Genuine product description.'
     assert select_description({'description': '{TITLE} placeholder'}, 'www.flipkart.com') is None
+
+
+def test_amazon_prefers_real_product_title_over_accessibility_heading():
+    facts = {
+        'heading': 'Product summary presents key product information Keyboard shortcut shift + alt + opt + D',
+        'description': 'Samsung Galaxy A56 5G Mobile (Awesome Violet Glow, 8GB, 128GB) : Amazon.in: Electronics',
+        'amazon_product_title': 'Samsung Galaxy A56 5G Mobile (Awesome Violet Glow, 8GB, 128GB)',
+    }
+    assert select_product_name(facts, 'www.amazon.in') == facts['amazon_product_title']
+    facts['amazon_product_title'] = None
+    assert select_product_name(facts, 'www.amazon.in') == 'Samsung Galaxy A56 5G Mobile (Awesome Violet Glow, 8GB, 128GB)'
+
+
+def test_amazon_does_not_use_generic_h1_when_product_title_missing():
+    facts = {'heading': 'Product summary presents key product information Keyboard shortcut', 'product_name': None}
+    assert select_product_name(facts, 'www.amazon.in') is None
+    assert select_product_name({'heading': 'Actual product heading'}, 'www.flipkart.com') == 'Actual product heading'
+
+
+def test_browser_errors_have_diagnostic_categories():
+    assert browser_failure(RuntimeError('net::ERR_CONNECTION_RESET while loading URL')) == 'NETWORK_ERROR'
+    assert browser_failure(RuntimeError('navigation timeout')) == 'TIMEOUT'
+    assert browser_failure(RuntimeError('other browser issue')) == 'BROWSER_RUNTIMEERROR'
