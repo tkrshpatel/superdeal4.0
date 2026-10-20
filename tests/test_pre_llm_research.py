@@ -1,0 +1,59 @@
+"""Invariants for experimental pre-LLM product research."""
+import json
+
+import pytest
+
+from backend import Backend
+from pre_llm_research import llm_evidence, research_images
+
+URL1 = "https://fkrt.cc/alpha"
+URL2 = "https://earnkaro.com/beta"
+
+
+def product(url, name="Example product"):
+    return {
+        'product_name': name, 'brand': None, 'ecommerce_platform': None,
+        'deal_price': None, 'original_price': None, 'discount_percentage': None,
+        'affiliate_urls': [url], 'confidence': 90, 'issues': []
+    }
+
+
+def response(products):
+    return json.dumps({
+        'products': products, 'unassigned_urls': [],
+        'message_issues': [], 'analysis_summary': 'verified'
+    })
+
+
+def test_research_does_not_change_earnkaro_url():
+    text = "First " + URL1 + " second " + URL2
+    records = {URL1: {'product_name': 'Phone', 'description': 'merchant facts',
+                      'brand': 'Brand', 'image_url': 'https://cdn.example.com/phone.jpg'}}
+    enriched = llm_evidence(text, records)
+    assert enriched.startswith(text)
+    assert URL1 in enriched and URL2 in enriched
+    # Validation against original EarnKaro response remains the authority.
+    assert Backend.validate(response([product(URL1), product(URL2)]), text)['products'][0]['affiliate_urls'] == [URL1]
+
+
+def test_rejects_modified_affiliate_even_if_in_research():
+    text = "Deal " + URL1
+    with pytest.raises(ValueError, match="Missing, invented"):
+        Backend.validate(response([product('https://www.flipkart.com/redirected')]), text)
+
+
+def test_images_only_attach_to_their_exact_link():
+    products = [product(URL1), product(URL2)]
+    records = {URL1: {'image_url': 'https://cdn.example.com/phone.jpg'},
+               URL2: {'image_url': None}}
+    original = json.dumps(products, sort_keys=True)
+    images = research_images(products, records)
+    assert images[0]['status'] == 'FOUND'
+    assert images[1]['status'] == 'PLACEHOLDER'
+    assert json.dumps(products, sort_keys=True) == original
+
+
+def test_promotional_logo_not_used_as_image():
+    products = [product(URL1)]
+    records = {URL1: {'image_url': None, 'product_name': 'Phone'}}
+    assert research_images(products, records)[0]['image_url'] == '/superdeal-placeholder.svg'
