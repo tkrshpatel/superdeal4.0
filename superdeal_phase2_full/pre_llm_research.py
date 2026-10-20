@@ -27,6 +27,39 @@ def usable_product_title(value):
     return value[:500]
 
 
+def flipkart_description(value):
+    """Preserve only the descriptive part of Flipkart's template metadata."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    # Flipkart uses an unexpanded metadata prefix on some product pages.
+    prefix = re.match(r"^Flipkart\\.com:\\s*Buy\\s+\\{TITLE\\}\\s+for\\s+Rs\\.\\s*\\{PRICE\\}\\s+from\\s+Flipkart\\.com\\.\\s*", value, re.I)
+    if prefix:
+        value = value[prefix.end():]
+    # Only strip a known retailer boilerplate suffix, not product content.
+    value = re.split(r"\\s*-\\s*Lowest Prices, Only Genuine Products", value, maxsplit=1, flags=re.I)[0].strip()
+    if not value or TEMPLATE_TITLE.search(value):
+        return None
+    return value[:1000]
+
+
+def select_description(facts, hostname):
+    """Fallback to raw description meta when structured data is absent."""
+    if not isinstance(facts, dict):
+        return None
+    candidates = [facts.get('description'), facts.get('meta_description')]
+    for value in candidates:
+        if not isinstance(value, str) or not value.strip():
+            continue
+        if hostname == 'flipkart.com' or hostname.endswith('.flipkart.com'):
+            cleaned = flipkart_description(value)
+        else:
+            cleaned = value.strip()[:1000] if not TEMPLATE_TITLE.search(value) else None
+        if cleaned:
+            return cleaned
+    return None
+
+
 def parse_inr_price(value):
     """Read a single INR amount, rejecting templates and ranges."""
     if isinstance(value, bool) or value is None:
@@ -116,6 +149,9 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                   const facts = {
                     product_name: meta(['meta[property="og:title"]','meta[name="twitter:title"]']),
                     description: meta(['meta[property="og:description"]','meta[name="description"]']),
+                    meta_description: Array.from(document.querySelectorAll('meta')).find(el =>
+                      (el.getAttribute('name') || '').toLowerCase() === 'description'
+                    )?.getAttribute('content') || null,
                     brand: null,
                     heading: document.querySelector('h1')?.textContent?.trim() || null,
                     meta_price: meta(['meta[property="product:price:amount"]',
@@ -160,6 +196,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                 for field in ('product_name', 'description', 'brand'):
                     val = facts.get(field)
                     item[field] = val.strip()[:500] if isinstance(val, str) and val.strip() else None
+                item['description'] = select_description(facts, (urlsplit(page.url).hostname or '').lower())
                 item.update(clean_price_evidence(facts))
                 # Product pages sometimes expose unexpanded {TITLE} metadata.
                 # Prefer a real heading, otherwise exclude the fake title.
