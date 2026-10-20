@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'superdeal_phase2_f
 import pytest
 
 from backend import Backend
-from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence
+from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description
 
 URL1 = "https://fkrt.cc/alpha"
 URL2 = "https://earnkaro.com/beta"
@@ -101,3 +101,22 @@ def test_mrp_not_confused_with_price():
     assert result['price'] == 349
     assert result['mrp'] == 599
     assert clean_price_evidence({'json_ld_price': '599', 'mrp': '349'})['mrp'] is None
+
+
+def test_flipkart_meta_description_preserves_only_product_copy():
+    raw = ("Flipkart.com: Buy {TITLE} for Rs. {PRICE} from Flipkart.com. "
+           "Formulated with a blend of nourishing ingredients, this face wash "
+           "is suitable for all skin types, offering a refreshing cleanse "
+           "without causing irritation - Lowest Prices, Only Genuine Products, "
+           "30 Day Replacement Guarantee, Free Shipping.")
+    result = select_description({'description': None, 'meta_description': raw}, 'www.flipkart.com')
+    assert result == ("Formulated with a blend of nourishing ingredients, this face wash "
+                      "is suitable for all skin types, offering a refreshing cleanse "
+                      "without causing irritation")
+    assert '{TITLE}' not in result
+    assert 'Free Shipping' not in result
+
+
+def test_description_fallback_does_not_change_other_retailers():
+    assert select_description({'description': 'Genuine product description.'}, 'amazon.in') == 'Genuine product description.'
+    assert select_description({'description': '{TITLE} placeholder'}, 'www.flipkart.com') is None
