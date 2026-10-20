@@ -87,11 +87,16 @@ def browser_failure(exc):
     if 'timeout' in kind or 'timeout' in message:
         return 'TIMEOUT'
     if 'net::err_' in message:
-        return 'NETWORK_ERROR'
+        match = re.search(r'net::(err_[a-z0-9_]+)', message)
+        return 'NETWORK_' + match.group(1).upper() if match else 'NETWORK_ERROR'
     if 'page.evaluate' in message or 'evaluation failed' in message:
         return 'PAGE_EVALUATION_ERROR'
     if 'target closed' in message or 'browser has been closed' in message:
         return 'BROWSER_CLOSED'
+    if 'page.goto' in message:
+        return 'NAVIGATION_ERROR'
+    if 'page.evaluate' in message:
+        return 'PAGE_EVALUATION_ERROR'
     return 'BROWSER_' + kind
 
 
