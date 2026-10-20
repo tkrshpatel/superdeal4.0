@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'superdeal_phase2_f
 import pytest
 
 from backend import Backend
-from pre_llm_research import llm_evidence, research_images
+from pre_llm_research import llm_evidence, research_images, usable_product_title
 
 URL1 = "https://fkrt.cc/alpha"
 URL2 = "https://earnkaro.com/beta"
@@ -62,3 +62,15 @@ def test_promotional_logo_not_used_as_image():
     products = [product(URL1)]
     records = {URL1: {'image_url': None, 'product_name': 'Phone'}}
     assert research_images(products, records)[0]['image_url'] == '/superdeal-placeholder.svg'
+
+
+def test_unresolved_flipkart_title_is_rejected():
+    title = "{TITLE} - Price in India, Buy {TITLE} Online In India, Reviews, Ratings & Features | Flipkart.com"
+    assert usable_product_title(title) is None
+    assert usable_product_title("Nat Habit Acne Control Face Wash 100ml") == "Nat Habit Acne Control Face Wash 100ml"
+
+
+def test_image_only_research_does_not_invent_product_name():
+    records = {URL1: {'product_name': None, 'image_url': 'https://cdn.example.com/facewash.jpg'}}
+    assert 'facewash.jpg' not in llm_evidence("Deal " + URL1, records)
+    assert research_images([product(URL1)], records)[0]['status'] == 'FOUND'
