@@ -16,6 +16,10 @@ PUBLIC_URL_RE = re.compile(
     r"^https?://(?:t\.me|telegram\.me)/(?:s/)?([^/?#]+)", re.I
 )
 
+TELEGRAM_WEB_CHAT_RE = re.compile(
+    r"^https?://web\.telegram\.org/(?:k|a)/?#(-?\d+)(?:[/?].*)?$", re.I
+)
+
 
 class TelegramUserReaderError(RuntimeError):
     pass
@@ -96,6 +100,23 @@ class TelegramUserSource:
             self.client.disconnect()
 
     def _resolve_entity(self, configured: str) -> Any:
+        web_link = TELEGRAM_WEB_CHAT_RE.fullmatch(configured.strip())
+        if web_link:
+            # Telegram Web fragment IDs do not include an MTProto access hash.
+            # Resolve them through dialogs accessible to the signed-in account.
+            target_id = abs(int(web_link.group(1)))
+            from telethon import utils
+            for dialog in self.client.get_dialogs(limit=None):
+                entity = dialog.entity
+                peer_id = int(utils.get_peer_id(entity))
+                if abs(peer_id) == target_id or int(entity.id) == target_id:
+                    return entity
+            raise TelegramUserReaderError(
+                f"Telegram Web chat {configured!r} was not found in this "
+                "account's dialogs. Open or join the chat in this Telegram "
+                "account first, then retry."
+            )
+
         target = normalize_user_channel(configured)
         try:
             return self.client.get_entity(target)
