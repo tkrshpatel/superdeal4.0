@@ -146,10 +146,6 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                               facts.json_ld_price = String(candidate);
                               facts.json_ld_price_currency = offer.priceCurrency || null;
                             }
-                            if (offer.highPrice != null && !facts.mrp) {
-                              facts.mrp = String(offer.highPrice);
-                              facts.mrp_source = 'json_ld_high_price';
-                            }
                           }
                         }
                         if (value['@graph']) walk(value['@graph']);
