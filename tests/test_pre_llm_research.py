@@ -143,3 +143,31 @@ def test_browser_errors_have_diagnostic_categories():
     assert browser_failure(RuntimeError('net::ERR_CONNECTION_RESET while loading URL')) == 'NETWORK_ERR_CONNECTION_RESET'
     assert browser_failure(RuntimeError('navigation timeout')) == 'TIMEOUT'
     assert browser_failure(RuntimeError('other browser issue')) == 'BROWSER_RUNTIMEERROR'
+
+
+def test_amazon_price_fallback_and_mrp_distinction():
+    evidence = clean_price_evidence({
+        'amazon_price': '₹26,999.00',
+        'amazon_mrp': '₹32,999.00',
+    })
+    assert evidence['price'] == 26999.0
+    assert evidence['price_source'] == 'amazon_price_to_pay'
+    assert evidence['mrp'] == 32999.0
+    assert evidence['mrp_source'] == 'amazon_basis_price'
+
+
+def test_amazon_price_does_not_replace_structured_offer_or_accept_template():
+    evidence = clean_price_evidence({
+        'json_ld_price': '25999',
+        'json_ld_price_currency': 'INR',
+        'amazon_price': '₹26,999',
+        'amazon_mrp': '{PRICE}',
+    })
+    assert evidence['price'] == 25999.0
+    assert evidence['mrp'] is None
+
+
+def test_amazon_mrp_below_sale_price_is_rejected():
+    evidence = clean_price_evidence({'amazon_price': '₹999', 'amazon_mrp': '₹899'})
+    assert evidence['price'] == 999.0
+    assert evidence['mrp'] is None
