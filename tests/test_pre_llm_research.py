@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'superdeal_phase2_f
 import pytest
 
 from backend import Backend
-from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description, select_product_name, browser_failure
+from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description, select_product_name, browser_failure, persist_research, load_research
 
 URL1 = "https://fkrt.cc/alpha"
 URL2 = "https://earnkaro.com/beta"
@@ -171,3 +171,55 @@ def test_amazon_mrp_below_sale_price_is_rejected():
     evidence = clean_price_evidence({'amazon_price': '₹999', 'amazon_mrp': '₹899'})
     assert evidence['price'] == 999.0
     assert evidence['mrp'] is None
+
+
+class FakePlaywrightCollection:
+    def __init__(self):
+        self.docs = []
+
+    def insert_many(self, docs, ordered=True):
+        self.docs.extend(docs)
+
+    def find(self, query):
+        return [doc for doc in self.docs if doc['raw_id'] == query['raw_id']]
+
+
+def test_playwright_raw_roundtrip_to_llm_uses_saved_exact_links():
+    store = FakePlaywrightCollection()
+    text = 'First ' + URL1 + ' second ' + URL2
+    records = {
+        URL1: {'status': 'FOUND', 'product_name': 'Samsung phone', 'price': 26999.0,
+               'price_source': 'amazon_price_to_pay', 'image_url': 'https://cdn.example.com/a.jpg'},
+        URL2: {'status': 'NETWORK_ERR_HTTP2_PROTOCOL_ERROR', 'product_name': None,
+               'price': None, 'image_url': None},
+    }
+    persist_research(store, 'message-42', text, records)
+    assert len(store.docs) == 2
+    assert all(doc['source'] == 'playwright' for doc in store.docs)
+    assert {doc['affiliate_url'] for doc in store.docs} == {URL1, URL2}
+    # Ensure Mistral consumes the database copy, not a modified in-memory dict.
+    records[URL1]['price'] = 1.0
+    restored = load_research(store, 'message-42', text)
+    assert restored[URL1]['price'] == 26999.0
+    llm_text = llm_evidence(text, restored)
+    assert '"price": 26999.0' in llm_text
+    assert Backend.validate(response([product(URL1), product(URL2)]), text)
+
+
+def test_playwright_raw_rejects_rewritten_or_missing_links():
+    store = FakePlaywrightCollection()
+    with pytest.raises(ValueError, match='exact EarnKaro'):
+        persist_research(store, 'x', URL1, {'https://amazon.in/changed': {'price': 99}})
+    assert not store.docs
+    with pytest.raises(ValueError, match='exact EarnKaro'):
+        persist_research(store, 'x', URL1 + ' ' + URL2, {URL1: {'price': 99}})
+
+
+def test_playwright_raw_fails_closed_on_missing_or_duplicate_snapshot():
+    store = FakePlaywrightCollection()
+    persist_research(store, 'x', URL1, {URL1: {'status': 'FOUND'}})
+    with pytest.raises(ValueError, match='Incomplete'):
+        load_research(store, 'x', URL1 + ' ' + URL2)
+    store.docs.append(dict(store.docs[0]))
+    with pytest.raises(ValueError, match='Incomplete'):
+        load_research(store, 'x', URL1)
