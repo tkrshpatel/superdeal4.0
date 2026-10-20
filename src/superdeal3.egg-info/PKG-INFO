@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: superdeal3
+Version: 0.3.0
+Summary: SuperDeal 3.0 deal discovery engine
+Requires-Python: >=3.11
+License-File: LICENSE
+Requires-Dist: Telethon~=1.45.0
+Requires-Dist: requests<3,>=2.31
+Requires-Dist: playwright<2,>=1.55
+Provides-Extra: test
+Requires-Dist: pytest<9,>=8; extra == "test"
+Dynamic: license-file

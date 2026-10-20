@@ -1,0 +1,1 @@
+Fix: test_transactions.py loads the bundled backend.py explicitly, avoiding the repository root backend.py. Run: python -m pytest .\superdeal_phase2_full\test_transactions.py -v

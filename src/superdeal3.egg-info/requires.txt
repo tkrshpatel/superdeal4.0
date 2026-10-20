@@ -1,0 +1,6 @@
+Telethon~=1.45.0
+requests<3,>=2.31
+playwright<2,>=1.55
+
+[test]
+pytest<9,>=8

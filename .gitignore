@@ -1,0 +1,33 @@
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+*.session
+*.session-*
+*.pem
+*.key
+*.p12
+*.pfx
+*credentials*.json
+*secrets*.json
+*token*.json
+# Python/Node artifacts
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+node_modules/
+app/dist/
+# Databases, logs, captures, backups
+*.db
+*.sqlite
+*.sqlite3
+*.log
+*.bak
+*.before_*
+*.zip
+data/
+sessions/
+archive1/
+llm_*benchmark*.json

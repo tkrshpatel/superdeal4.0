@@ -1,0 +1,4 @@
+[console_scripts]
+superdeal-api = superdeal.server:main
+superdeal-telegram-login = superdeal.telegram_login:main
+superdeal-worker = superdeal.runner:main

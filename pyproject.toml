@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "superdeal3"
+version = "0.3.0"
+description = "SuperDeal 3.0 deal discovery engine"
+requires-python = ">=3.11"
+dependencies = [
+    "Telethon~=1.45.0",
+    "requests>=2.31,<3",
+    "playwright>=1.55,<2",
+]
+
+[project.scripts]
+superdeal-api = "superdeal.server:main"
+superdeal-worker = "superdeal.runner:main"
+superdeal-telegram-login = "superdeal.telegram_login:main"
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-q"
