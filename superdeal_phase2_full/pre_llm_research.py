@@ -5,10 +5,26 @@ Only runs when SUPERDEAL_PRE_LLM_RESEARCH=1. Source pages are untrusted.
 from __future__ import annotations
 
 import json
+import re
 from urllib.parse import urlsplit
 from image_enrichment import (BAD_IMAGE, PLACEHOLDER_IMAGE, _browser_image_loads,
                               _image_candidates, _public_dns, candidate_urls, safe_url)
 from backend import urls
+
+
+TEMPLATE_TITLE = re.compile(r"\\{[^{}]{1,60}\\}|\\$\\{[^{}]{1,60}\\}", re.I)
+
+
+def usable_product_title(value):
+    """Reject unresolved retailer templates, not just empty metadata."""
+    if not isinstance(value, str):
+        return None
+    value = value.strip()
+    if not value or TEMPLATE_TITLE.search(value):
+        return None
+    if value.lower() in {'flipkart', 'amazon', 'shopify', 'online shopping'}:
+        return None
+    return value[:500]
 
 
 def research_message(earnkaro_message, *, browser=None, max_links=12):
@@ -67,7 +83,8 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                   const facts = {
                     product_name: meta(['meta[property="og:title"]','meta[name="twitter:title"]']),
                     description: meta(['meta[property="og:description"]','meta[name="description"]']),
-                    brand: null
+                    brand: null,
+                    heading: document.querySelector('h1')?.textContent?.trim() || null
                   };
                   for (const el of document.querySelectorAll('script[type="application/ld+json"]')) {
                     try {
@@ -92,17 +109,19 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                 for field in ('product_name', 'description', 'brand'):
                     val = facts.get(field)
                     item[field] = val.strip()[:500] if isinstance(val, str) and val.strip() else None
-                # A generic coupon/landing page title is not product evidence.
+                # Product pages sometimes expose unexpanded {TITLE} metadata.
+                # Prefer a real heading, otherwise exclude the fake title.
+                item['product_name'] = (usable_product_title(item['product_name'])
+                                        or usable_product_title(facts.get('heading')))
                 if not item['product_name']:
-                    item['status'] = 'NO_PRODUCT_DATA'
-                    continue
+                    item['status'] = 'NO_PRODUCT_TITLE'
                 for image in candidate_urls(_image_candidates(page), page.url)[:8]:
                     path = urlsplit(image).path.lower()
                     if BAD_IMAGE.search(path) or '/stores/ogimage/' in path or 'ckassets.com' in (urlsplit(image).hostname or ''):
                         continue
                     if _browser_image_loads(page, image):
                         item['image_url'] = image
-                        item['status'] = 'FOUND'
+                        item['status'] = 'FOUND' if item['product_name'] else 'IMAGE_ONLY'
                         break
             except Exception as exc:
                 records[url]['status'] = 'BROWSER_' + type(exc).__name__.upper()
