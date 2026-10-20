@@ -33,11 +33,11 @@ def flipkart_description(value):
         return None
     value = value.strip()
     # Flipkart uses an unexpanded metadata prefix on some product pages.
-    prefix = re.match(r"^Flipkart\\.com:\\s*Buy\\s+\\{TITLE\\}\\s+for\\s+Rs\\.\\s*\\{PRICE\\}\\s+from\\s+Flipkart\\.com\\.\\s*", value, re.I)
+    prefix = re.match(r"^Flipkart\.com:\s*Buy\s+\{TITLE\}\s+for\s+Rs\.\s*\{PRICE\}\s+from\s+Flipkart\.com\.\s*", value, re.I)
     if prefix:
         value = value[prefix.end():]
     # Only strip a known retailer boilerplate suffix, not product content.
-    value = re.split(r"\\s*-\\s*Lowest Prices, Only Genuine Products", value, maxsplit=1, flags=re.I)[0].strip()
+    value = re.split(r"\s*-\s*Lowest Prices, Only Genuine Products", value, maxsplit=1, flags=re.I)[0].strip()
     if not value or TEMPLATE_TITLE.search(value):
         return None
     return value[:1000]
