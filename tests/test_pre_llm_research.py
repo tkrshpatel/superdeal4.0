@@ -1,5 +1,10 @@
 """Invariants for experimental pre-LLM product research."""
 import json
+import sys
+from pathlib import Path
+
+# Backend modules are intentionally stored in this standalone source directory.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'superdeal_phase2_full'))
 
 import pytest
 
