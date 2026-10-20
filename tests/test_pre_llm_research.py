@@ -140,6 +140,6 @@ def test_amazon_does_not_use_generic_h1_when_product_title_missing():
 
 
 def test_browser_errors_have_diagnostic_categories():
-    assert browser_failure(RuntimeError('net::ERR_CONNECTION_RESET while loading URL')) == 'NETWORK_ERROR'
+    assert browser_failure(RuntimeError('net::ERR_CONNECTION_RESET while loading URL')) == 'NETWORK_ERR_CONNECTION_RESET'
     assert browser_failure(RuntimeError('navigation timeout')) == 'TIMEOUT'
     assert browser_failure(RuntimeError('other browser issue')) == 'BROWSER_RUNTIMEERROR'
