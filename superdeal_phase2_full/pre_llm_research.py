@@ -60,6 +60,41 @@ def select_description(facts, hostname):
     return None
 
 
+
+def select_product_name(facts, hostname):
+    """Merchant-specific title fallback; avoid accessibility/help headings."""
+    if not isinstance(facts, dict):
+        return None
+    if hostname == 'amazon.in' or hostname.endswith('.amazon.in'):
+        amazon_title = usable_product_title(facts.get('amazon_product_title'))
+        if amazon_title:
+            return amazon_title
+        # A product-specific Amazon meta description often contains the real title.
+        description = facts.get('description') or facts.get('meta_description')
+        if isinstance(description, str) and ': Amazon.in:' in description:
+            candidate = description.split(': Amazon.in:', 1)[0].strip()
+            if candidate and len(candidate) > 15 and not candidate.lower().startswith(('product summary', 'amazon.in')):
+                return usable_product_title(candidate)
+        # Never select the first generic Amazon h1 (often an accessibility shortcut).
+        return usable_product_title(facts.get('product_name'))
+    return usable_product_title(facts.get('product_name')) or usable_product_title(facts.get('heading'))
+
+
+def browser_failure(exc):
+    """Safe, concise failure classification without exposing query strings."""
+    kind = type(exc).__name__.upper()
+    message = str(exc).lower()
+    if 'timeout' in kind or 'timeout' in message:
+        return 'TIMEOUT'
+    if 'net::err_' in message:
+        return 'NETWORK_ERROR'
+    if 'page.evaluate' in message or 'evaluation failed' in message:
+        return 'PAGE_EVALUATION_ERROR'
+    if 'target closed' in message or 'browser has been closed' in message:
+        return 'BROWSER_CLOSED'
+    return 'BROWSER_' + kind
+
+
 def parse_inr_price(value):
     """Read a single INR amount, rejecting templates and ranges."""
     if isinstance(value, bool) or value is None:
@@ -154,6 +189,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                     )?.getAttribute('content') || null,
                     brand: null,
                     heading: document.querySelector('h1')?.textContent?.trim() || null,
+                    amazon_product_title: document.querySelector('#productTitle')?.textContent?.trim() || null,
                     meta_price: meta(['meta[property="product:price:amount"]',
                                       'meta[property="og:price:amount"]',
                                       'meta[itemprop="price"]']),
@@ -200,8 +236,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                 item.update(clean_price_evidence(facts))
                 # Product pages sometimes expose unexpanded {TITLE} metadata.
                 # Prefer a real heading, otherwise exclude the fake title.
-                item['product_name'] = (usable_product_title(item['product_name'])
-                                        or usable_product_title(facts.get('heading')))
+                item['product_name'] = select_product_name(facts, (urlsplit(page.url).hostname or '').lower())
                 if not item['product_name']:
                     item['status'] = 'NO_PRODUCT_TITLE'
                 for image in candidate_urls(_image_candidates(page), page.url)[:8]:
@@ -213,7 +248,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                         item['status'] = 'FOUND' if item['product_name'] else 'IMAGE_ONLY'
                         break
             except Exception as exc:
-                records[url]['status'] = 'BROWSER_' + type(exc).__name__.upper()
+                records[url]['status'] = browser_failure(exc)
         for url in links[max_links:]:
             records[url]['status'] = 'LINK_LIMIT'
         return records
