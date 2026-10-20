@@ -285,6 +285,43 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
         context.close()
 
 
+
+def persist_research(collection, raw_id, earnkaro_text, records):
+    """Store a separate immutable research snapshot for each exact EarnKaro link.
+
+    No merchant destination can become an affiliate key. Save failures too.
+    """
+    from datetime import datetime, timezone
+    links = sorted(urls(earnkaro_text))
+    if set(records) != set(links):
+        raise ValueError('Research keys must match exact EarnKaro URLs')
+    now = datetime.now(timezone.utc)
+    docs = [
+        {'raw_id': raw_id, 'affiliate_url': link, 'research': dict(records[link]),
+         'collected_at': now, 'source': 'playwright'}
+        for link in links
+    ]
+    if docs:
+        collection.insert_many(docs, ordered=True)
+
+
+def load_research(collection, raw_id, earnkaro_text):
+    """Read saved evidence back; fail closed on missing or duplicated URL records."""
+    expected = urls(earnkaro_text)
+    docs = list(collection.find({'raw_id': raw_id}))
+    if len(docs) != len(expected):
+        raise ValueError('Incomplete saved Playwright evidence')
+    result = {}
+    for doc in docs:
+        link = doc.get('affiliate_url')
+        if link not in expected or link in result or not isinstance(doc.get('research'), dict):
+            raise ValueError('Invalid Playwright evidence association')
+        result[link] = doc['research']
+    if set(result) != expected:
+        raise ValueError('Saved evidence does not match EarnKaro links')
+    return result
+
+
 def llm_evidence(converted_text, records):
     """Keep immutable EarnKaro message as the sole affiliate URL authority."""
     summaries = [{ 'earnkaro_url': url,
