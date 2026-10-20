@@ -12,7 +12,7 @@ from image_enrichment import (BAD_IMAGE, PLACEHOLDER_IMAGE, _browser_image_loads
 from backend import urls
 
 
-TEMPLATE_TITLE = re.compile(r"\\{[^{}]{1,60}\\}|\\$\\{[^{}]{1,60}\\}", re.I)
+TEMPLATE_TITLE = re.compile(r"\{[^{}]{1,60}\}|\$\{[^{}]{1,60}\}", re.I)
 
 
 def usable_product_title(value):
@@ -36,7 +36,7 @@ def parse_inr_price(value):
     if not isinstance(value, str) or TEMPLATE_TITLE.search(value):
         return None
     value = value.strip()
-    if not re.fullmatch(r"(?:₹|Rs\\.?\\s*)?\\s*[0-9][0-9,]*(?:\\.[0-9]{1,2})?", value, re.I):
+    if not re.fullmatch(r"(?:₹|Rs\.?\s*)?\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?", value, re.I):
         return None
     amount = float(re.sub(r"[^0-9.]", "", value))
     return amount if 0 < amount < 100000000 else None
