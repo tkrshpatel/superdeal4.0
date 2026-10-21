@@ -33,6 +33,11 @@ VALIDATION_REASONS = frozenset({
     'Invalid price or discount',
     'Invalid brand/platform',
     'Missing, invented, or duplicated affiliate URLs',
+    'Invalid link-ID response schema',
+    'Invalid link-ID product schema',
+    'Invalid product link IDs',
+    'Invalid unassigned link IDs',
+    'Missing, invented, or duplicated link IDs',
 })
 
 
