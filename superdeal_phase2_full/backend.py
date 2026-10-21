@@ -45,6 +45,27 @@ def urls(text):
     return set(u.rstrip('.,;!?)\\]}>') for u in URL_RE.findall(text or ''))
 
 
+def product_name_key(name):
+    """Conservative exact-name match: case, punctuation and spacing insensitive."""
+    import unicodedata
+    normalized = unicodedata.normalize('NFKC', str(name)).casefold()
+    return ' '.join(re.findall(r'[^\\W_]+', normalized, flags=re.UNICODE))
+
+
+def select_new_products(products, already_published_names):
+    """Return original list indices; never reassign affiliate links or images."""
+    seen = set(already_published_names)
+    kept, duplicates = [], []
+    for idx, product in enumerate(products):
+        key = product_name_key(product['product_name'])
+        if key in seen:
+            duplicates.append(idx)
+        else:
+            kept.append(idx)
+            seen.add(key)
+    return kept, duplicates
+
+
 class Backend:
     def __init__(self, db, *, llm=None, converter=None, image_scraper=None):
         self.db = db
@@ -65,6 +86,7 @@ class Backend:
         self.db.pipeline_status.create_index('status')
         self.db.pipeline_status.create_index([('status', ASCENDING), ('published_at', -1), ('_id', -1)])
         self.db.deal_clicks.create_index([('deal_id', ASCENDING), ('clicked_at', -1)])
+        # Unique _id on dedupe_guards serializes concurrent publications per name.
 
     def log(self, raw_id, stage, severity, event, *, error=None, details=None):
         item = {'raw_id': raw_id, 'stage': stage, 'severity': severity, 'event': event,
@@ -293,33 +315,66 @@ class Backend:
             })
             stage = 'PUBLICATION'
             self._transition(raw_id, stage)
-            # Transactionally commit all product facts and the publication gate.
-            # MongoDB requires a replica set (including a single-node replica set).
+            # Check a rolling hour of successfully published products, not just
+            # messages from the same Telegram channel. Work per product, so a
+            # mixed message can still publish its new offers.
             publication_id = str(uuid4())
+            published_at = now()
+            cutoff = published_at - timedelta(hours=1)
+            kept_indices = []
+            duplicate_indices = []
             client = self.db.client
             with client.start_session() as session:
                 with session.start_transaction():
-                    for idx, p in enumerate(parsed['products']):
+                    # Per-name writes inside the transaction prevent concurrent
+                    # publishers from both passing a stale duplicate read.
+                    keys = sorted({product_name_key(p['product_name']) for p in parsed['products']})
+                    for key in keys:
+                        self.db.dedupe_guards.update_one(
+                            {'_id': key}, {'$inc': {'version': 1}}, upsert=True, session=session
+                        )
+                    prior_names = set()
+                    recent_statuses = self.db.pipeline_status.find(
+                        {'status': 'PUBLISHED', 'published_at': {'$gte': cutoff, '$lte': published_at}},
+                        {'raw_id': 1, 'publication_id': 1}, session=session
+                    )
+                    for prior in recent_statuses:
+                        for fact in self.db.fact_table.find(
+                            {'raw_id': prior['raw_id'], 'publication_id': prior['publication_id']},
+                            {'product.product_name': 1}, session=session
+                        ):
+                            name = (fact.get('product') or {}).get('product_name')
+                            if name:
+                                prior_names.add(product_name_key(name))
+                    kept_indices, duplicate_indices = select_new_products(parsed['products'], prior_names)
+                    for idx in kept_indices:
                         self.db.fact_table.insert_one({
                             'raw_id': raw_id, 'offer_index': idx,
-                            'publication_id': publication_id, 'product': p,
+                            'publication_id': publication_id, 'product': parsed['products'][idx],
                             'image_enrichment': images[idx],
                             'llm_response': llm_response,
                             'model': os.getenv('OLLAMA_MODEL', 'mistral:instruct'),
-                            'created_at': now(),
+                            'created_at': published_at,
                         }, session=session)
+                    update = {
+                        'status': 'PUBLISHED' if kept_indices else 'DUPLICATE',
+                        'current_stage': 'PUBLICATION',
+                        'products_published': len(kept_indices),
+                        'products_duplicate': len(duplicate_indices),
+                        'updated_at': published_at,
+                    }
+                    if kept_indices:
+                        update.update({'publication_id': publication_id, 'published_at': published_at})
                     commit = self.db.pipeline_status.update_one(
                         {'raw_id': raw_id, 'status': 'PROCESSING'},
-                        {'$set': {
-                            'status': 'PUBLISHED', 'current_stage': 'PUBLICATION',
-                            'publication_id': publication_id,
-                            'products_published': len(parsed['products']),
-                            'published_at': now(), 'updated_at': now(),
-                        }}, session=session)
+                        {'$set': update}, session=session
+                    )
                     if commit.modified_count != 1:
                         raise RuntimeError('Publication status commit failed')
-            self.log(raw_id, stage, 'INFO', 'PUBLISHED', details={'products': len(parsed['products'])})
-            return len(parsed['products'])
+            self.log(raw_id, stage, 'INFO',
+                     'PUBLISHED' if kept_indices else 'DUPLICATE',
+                     details={'published': len(kept_indices), 'duplicates': len(duplicate_indices)})
+            return len(kept_indices)
         except Exception as exc:
             self._fail(raw_id, stage, exc)
             return 0
