@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "superdeal_phase2_f
 
 from pymongo import MongoClient, ASCENDING  # noqa: E402
 from backend import Backend, urls  # noqa: E402
+from affiliate_link_ids import restore_affiliate_urls  # noqa: E402
 from pre_llm_research import (  # noqa: E402
     research_message, persist_research, load_research, llm_evidence
 )
@@ -65,13 +66,14 @@ def main():
         # a generic validation error. Keep Backend.validate strict.
         try:
             decoded = json.loads(llm_response)
-            required = {"products", "unassigned_urls", "message_issues", "analysis_summary"}
+            required = {"products", "unassigned_link_ids", "message_issues", "analysis_summary"}
             print("MODEL ROOT KEYS:", sorted(decoded) if isinstance(decoded, dict) else type(decoded).__name__)
             if isinstance(decoded, dict) and required - set(decoded):
                 print("MISSING ROOT KEYS:", sorted(required - set(decoded)))
         except (ValueError, TypeError):
             print("MODEL JSON: INVALID")
-        parsed = Backend.validate(llm_response, converted_text)
+        restored = restore_affiliate_urls(llm_response, converted_text)
+        parsed = Backend.validate(restored, converted_text)
         for product in parsed["products"]:
             evidence = saved.get(product["affiliate_urls"][0], {})
             if product["deal_price"] is not None and evidence.get("price") is None:
