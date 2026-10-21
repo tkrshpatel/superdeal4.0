@@ -55,9 +55,8 @@ def extract_explicit_prices(converted_text):
             candidates.append(same_line)
         # Only look immediately before the link: a single price/product line,
         # optionally preceded by a title. Never reach past a previous link.
-        for previous in lines[max(0, i - 2):i]:
+        for previous in reversed(lines[max(0, i - 2):i]):
             if re.search(r'\bLINK_\d{3,}\b', previous):
-                candidates = []
                 break
             price = _line_price(previous)
             if price is not None:
