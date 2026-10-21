@@ -260,8 +260,9 @@ class Backend:
             self.log(raw_id, stage, 'INFO', 'CONVERTED')
             # Experiment: collect merchant page evidence before LLM, without
             # rewriting any EarnKaro URL or changing the default pipeline.
+            from affiliate_link_ids import llm_input as build_llm_input, restore_affiliate_urls
             research = None
-            llm_input = converted['response_text']
+            llm_input = build_llm_input(converted['response_text'])
             if os.getenv('SUPERDEAL_PRE_LLM_RESEARCH') == '1':
                 stage = 'PRODUCT_RESEARCH'
                 self._transition(raw_id, stage)
@@ -290,7 +291,10 @@ class Backend:
             llm_response = self.llm(llm_input)
             stage = 'VALIDATION'
             self._transition(raw_id, stage)
-            parsed = self.validate(llm_response, converted['response_text'])
+            # Mistral returns opaque IDs. Restore exact EarnKaro URLs in
+            # Python, then retain the original strict publication validator.
+            restored_response = restore_affiliate_urls(llm_response, converted['response_text'])
+            parsed = self.validate(restored_response, converted['response_text'])
             if research is not None:
                 from pre_llm_research import fill_missing_mrp
                 fill_missing_mrp(parsed['products'], research)
