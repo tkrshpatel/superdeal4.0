@@ -61,7 +61,23 @@ def main():
         print("MISTRAL RAW JSON:", llm_response)
 
         print("4. Validating exact EarnKaro link and product schema...")
+        # Show missing schema fields explicitly rather than masking them behind
+        # a generic validation error. Keep Backend.validate strict.
+        try:
+            decoded = json.loads(llm_response)
+            required = {"products", "unassigned_urls", "message_issues", "analysis_summary"}
+            print("MODEL ROOT KEYS:", sorted(decoded) if isinstance(decoded, dict) else type(decoded).__name__)
+            if isinstance(decoded, dict) and required - set(decoded):
+                print("MISSING ROOT KEYS:", sorted(required - set(decoded)))
+        except (ValueError, TypeError):
+            print("MODEL JSON: INVALID")
         parsed = Backend.validate(llm_response, converted_text)
+        for product in parsed["products"]:
+            evidence = saved.get(product["affiliate_urls"][0], {})
+            if product["deal_price"] is not None and evidence.get("price") is None:
+                print("WARNING: LLM deal price has no Playwright price evidence.")
+            if product["original_price"] is not None and evidence.get("mrp") is None:
+                print("WARNING: LLM original price has no Playwright MRP evidence.")
         for product in parsed["products"]:
             print("PRODUCT:", product["product_name"])
             print("DEAL PRICE:", product["deal_price"])
