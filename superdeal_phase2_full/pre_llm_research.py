@@ -340,6 +340,30 @@ def llm_evidence(converted_text, records):
             json.dumps(summaries, ensure_ascii=False))
 
 
+def fill_missing_mrp(products, records):
+    """Copy only an unambiguous, exact-link Playwright MRP into missing LLM MRP.
+
+    Never change selling price, product order, or affiliate URLs. Reject
+    conflicting research MRPs for multi-link products.
+    """
+    for product in products:
+        if product.get('original_price') is not None:
+            continue
+        evidence = []
+        for affiliate_url in product.get('affiliate_urls') or []:
+            research = records.get(affiliate_url) or {}
+            mrp = research.get('mrp')
+            if type(mrp) not in (int, float) or not (0 < mrp < 100000000):
+                continue
+            evidence.append(mrp)
+        if evidence and len(set(evidence)) == 1:
+            # Reject a mislabeled original price lower than a known sale price.
+            deal_price = product.get('deal_price')
+            if deal_price is None or evidence[0] >= deal_price:
+                product['original_price'] = evidence[0]
+    return products
+
+
 def research_images(products, records):
     """Per-product image lookup exclusively by validated exact affiliate URL."""
     from datetime import datetime, timezone
