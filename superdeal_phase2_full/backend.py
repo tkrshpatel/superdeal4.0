@@ -49,7 +49,7 @@ def product_name_key(name):
     """Conservative exact-name match: case, punctuation and spacing insensitive."""
     import unicodedata
     normalized = unicodedata.normalize('NFKC', str(name)).casefold()
-    return ' '.join(re.findall(r'[^\\W_]+', normalized, flags=re.UNICODE))
+    return ' '.join(re.findall(r'[^\W_]+', normalized, flags=re.UNICODE))
 
 
 def select_new_products(products, already_published_names):
