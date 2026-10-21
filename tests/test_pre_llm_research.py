@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'superdeal_phase2_f
 import pytest
 
 from backend import Backend
-from pre_llm_research import llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description, select_product_name, browser_failure, persist_research, load_research
+from pre_llm_research import fill_missing_mrp, llm_evidence, research_images, usable_product_title, clean_price_evidence, select_description, select_product_name, browser_failure, persist_research, load_research
 
 URL1 = "https://fkrt.cc/alpha"
 URL2 = "https://earnkaro.com/beta"
@@ -223,3 +223,34 @@ def test_playwright_raw_fails_closed_on_missing_or_duplicate_snapshot():
     store.docs.append(dict(store.docs[0]))
     with pytest.raises(ValueError, match='Incomplete'):
         load_research(store, 'x', URL1)
+
+
+def test_missing_mrp_uses_only_exact_affiliate_link():
+    first = product(URL1)
+    first['deal_price'] = 27999.0
+    second = product(URL2)
+    research = {
+        URL1: {'mrp': 49999.0},
+        URL2: {'mrp': None},
+    }
+    fill_missing_mrp([first, second], research)
+    assert first['original_price'] == 49999.0
+    assert second['original_price'] is None
+    assert first['affiliate_urls'] == [URL1]
+
+
+def test_mrp_fallback_never_overwrites_llm_or_uses_lower_value():
+    first = product(URL1)
+    first['original_price'] = 45000.0
+    second = product(URL2)
+    second['deal_price'] = 500.0
+    fill_missing_mrp([first, second], {URL1: {'mrp': 49999.0}, URL2: {'mrp': 400.0}})
+    assert first['original_price'] == 45000.0
+    assert second['original_price'] is None
+
+
+def test_multiple_conflicting_mrps_do_not_get_assigned():
+    offer = product(URL1)
+    offer['affiliate_urls'] = [URL1, URL2]
+    fill_missing_mrp([offer], {URL1: {'mrp': 799.0}, URL2: {'mrp': 999.0}})
+    assert offer['original_price'] is None
