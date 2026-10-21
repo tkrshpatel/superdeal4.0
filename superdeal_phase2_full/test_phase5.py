@@ -46,3 +46,13 @@ def test_legacy_read_only_adapter():
         assert request(base, '/api/v1/deals')[0] == 200
     finally:
         server.shutdown(); thread.join(timeout=3); server.server_close()
+
+
+def test_web_adapter_preserves_published_image():
+    product = {'id': 'image-deal', 'affiliate_urls': ['https://example.com/affiliate'],
+               'image_url': 'https://example.com/product.jpg', 'enrichment_status': 'FOUND'}
+    from api import _legacy_deal
+    result = _legacy_deal(product)
+    assert result['image_url'] == product['image_url']
+    assert result['enrichment_status'] == 'FOUND'
+    assert result['current_price'] is None

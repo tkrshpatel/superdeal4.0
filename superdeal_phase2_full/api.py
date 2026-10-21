@@ -34,12 +34,12 @@ def _legacy_deal(product, metadata=None):
         'discount_pct': product.get('discount_percentage'),
         'affiliate_url': urls[0] if urls else None,
         'affiliate_urls': urls,
-        'image_url': None,
+        'image_url': product.get('image_url'),
         'click_count': metadata.get('click_count'),
         'hot': metadata.get('hot'),
         'last_seen_at': metadata.get('published_at'),
         'fresh': metadata.get('fresh'),
-        'enrichment_status': None,
+        'enrichment_status': product.get('enrichment_status'),
     }
 
 

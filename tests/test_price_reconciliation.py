@@ -31,11 +31,11 @@ def test_earnkaro_message_overrides_wrong_model_selling_price():
     assert products[0]['deal_price'] == 25999.0
 
 
-def test_single_product_telegram_fallback_when_converted_text_drops_price():
+def test_raw_message_cannot_override_missing_earnkaro_price():
     products = [offer(A)]
     raw = 'Redmi Note 15 at 25999\n' + B + '\nApply 1500 off Coupon'
-    assert apply_verified_prices(products, 'Redmi Note 15\n' + A, raw_text=raw) == 1
-    assert products[0]['deal_price'] == 25999.0
+    assert apply_verified_prices(products, 'Redmi Note 15\n' + A, raw_text=raw) == 0
+    assert products[0]['deal_price'] is None
 
 
 def test_coupon_only_cannot_become_selling_price():
@@ -71,3 +71,21 @@ def test_merchant_fallback_only_for_same_exact_link():
 def test_no_mrp_or_card_amount_as_selling_price():
     msg = 'Phone MRP ₹49999\n' + A + '\n₹1500 cashback on ICICI Card'
     assert extract_explicit_prices(msg) == {}
+
+
+def test_model_price_is_replaced_by_exact_link_research():
+    products = [offer(A, 123)]
+    apply_verified_prices(products, 'Phone\n' + A, research={A: {'price': 24999}})
+    assert products[0]['deal_price'] == 24999
+
+
+def test_unsupported_model_price_is_cleared():
+    products = [offer(A, 123)]
+    apply_verified_prices(products, 'Phone\n' + A)
+    assert products[0]['deal_price'] is None
+
+
+def test_earnkaro_wins_over_playwright():
+    products = [offer(A, 123)]
+    apply_verified_prices(products, 'Phone at 25999\n' + A, research={A: {'price': 24999}})
+    assert products[0]['deal_price'] == 25999
