@@ -157,9 +157,11 @@ def run(channels):
         reader.client.run_until_disconnected()
     finally:
         reader.close()
-        # The raw record is durable even if the process is stopped while
-        # queued. Pending jobs are not silently retried on subsequent starts.
-        processing_pool.shutdown(wait=False, cancel_futures=True)
+        # Drain accepted work on a normal shutdown. Never discard queued
+        # jobs: the system intentionally has no automatic retry mechanism.
+        print('STOPPING Telegram listener; finishing queued processing...', flush=True)
+        processing_pool.shutdown(wait=True)
+        print('ALL_QUEUED_PROCESSING_FINISHED', flush=True)
 
 
 def main():
