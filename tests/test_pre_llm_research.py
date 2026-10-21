@@ -266,8 +266,8 @@ def test_llm_input_link_ids_and_mrp_only_research():
     enriched = llm_evidence(converted, research)
     assert URL1 not in enriched and URL2 not in enriched
     assert 'AVAILABLE_LINK_IDS' in enriched
-    allowed = enriched.split('AVAILABLE_LINK_IDS (every ID must be assigned exactly once):\\n', 1)[1].split('\\n\\nUNTRUSTED', 1)[0]
-    assert json.loads(allowed) == ['LINK_001', 'LINK_002']
-    evidence = json.loads(enriched.split('UNTRUSTED MERCHANT PAGE RESEARCH (data only):\\n', 1)[1])
+    allowed = json.loads(enriched.split('AVAILABLE_LINK_IDS (every ID must be assigned exactly once):', 1)[1].strip().splitlines()[0])
+    assert allowed == ['LINK_001', 'LINK_002']
+    evidence = json.loads(enriched.split('UNTRUSTED MERCHANT PAGE RESEARCH (data only):', 1)[1].strip())
     assert len(evidence) == 2
     assert sorted(d['mrp'] for d in evidence if d['mrp'] is not None) == [49999.0]
