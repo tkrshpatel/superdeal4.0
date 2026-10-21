@@ -6,6 +6,8 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import concurrent.futures
+import threading
 import os
 import sys
 from pathlib import Path
@@ -39,19 +41,34 @@ def parse_channels(value):
     return channels
 
 
-def handle_message(backend, channel, msg_id, text, observed_at):
-    """Persist once and run the existing publication-gated pipeline once."""
-    query = {'channel': channel, 'message_id': str(msg_id)}
-    existing = backend.db.raw.find_one(query, {'_id': 1})
-    if existing:
-        return 'DUPLICATE', str(existing['_id'])
+def ingest_message(backend, channel, msg_id, text, observed_at):
+    """Durably save a Telegram event before scheduling expensive processing."""
     raw_id = backend.ingest(channel, str(msg_id), text, observed_at=observed_at)
     status = backend.db.pipeline_status.find_one({'raw_id': raw_id}, {'status': 1}) or {}
-    if status.get('status') != 'PENDING':
-        return 'SKIPPED', str(raw_id)
-    backend.process(raw_id)  # Claim is atomic; FAILED is terminal, never retried.
-    status = backend.db.pipeline_status.find_one({'raw_id': raw_id}, {'status': 1}) or {}
-    return status.get('status', 'UNKNOWN'), str(raw_id)
+    return status.get('status', 'UNKNOWN'), raw_id
+
+
+def process_message(backend, channel, msg_id, raw_id):
+    """Run a claimed PENDING message; never automatically retry FAILED ones."""
+    try:
+        published = backend.process(raw_id)
+        status = backend.db.pipeline_status.find_one({'raw_id': raw_id}, {'status': 1}) or {}
+        print(
+            f'PROCESSED channel={channel} id={msg_id} raw_id={raw_id} '
+            f'status={status.get("status", "UNKNOWN")} products={published}',
+            flush=True,
+        )
+    except Exception as exc:
+        print(f'PROCESSING_ERROR channel={channel} id={msg_id} type={type(exc).__name__}', file=sys.stderr, flush=True)
+
+
+# Backward-compatible entry point for callers that intentionally process synchronously.
+def handle_message(backend, channel, msg_id, text, observed_at):
+    state, raw_id = ingest_message(backend, channel, msg_id, text, observed_at)
+    if state == 'PENDING':
+        process_message(backend, channel, msg_id, raw_id)
+        state = (backend.db.pipeline_status.find_one({'raw_id': raw_id}, {'status': 1}) or {}).get('status', 'UNKNOWN')
+    return state, str(raw_id)
 
 
 def run(channels):
@@ -91,6 +108,23 @@ def run(channels):
         channel_by_peer = {int(utils.get_peer_id(entity)): stable for _, entity, stable in resolved}
         entities = [entity for _, entity, _ in resolved]
 
+        # A dedicated, bounded processing thread keeps costly merchant browsing
+        # and local LLM calls off Telegram's message-receiving path.
+        processing_pool = concurrent.futures.ThreadPoolExecutor(
+            max_workers=1, thread_name_prefix='superdeal-processing'
+        )
+        processing_futures = set()
+        processing_lock = threading.Lock()
+
+        def schedule_processing(channel, msg_id, raw_id):
+            future = processing_pool.submit(process_message, backend, channel, msg_id, raw_id)
+            with processing_lock:
+                processing_futures.add(future)
+            def on_done(done):
+                with processing_lock:
+                    processing_futures.discard(done)
+            future.add_done_callback(on_done)
+
         @reader.client.on(events.NewMessage(chats=entities))
         async def on_new_message(event):
             print(
@@ -107,10 +141,12 @@ def run(channels):
                 return  # Ignore nontext messages.
             try:
                 state, raw_id = await asyncio.to_thread(
-                    handle_message, backend, stable, converted.message_id,
+                    ingest_message, backend, stable, converted.message_id,
                     converted.text, event.message.date,
                 )
-                print(f'MESSAGE channel={stable} id={converted.message_id} raw_id={raw_id} status={state}', flush=True)
+                print(f'STORED channel={stable} id={converted.message_id} raw_id={raw_id} status={state}', flush=True)
+                if state == 'PENDING':
+                    schedule_processing(stable, converted.message_id, raw_id)
             except Exception as exc:
                 # Never print message bodies, affiliate URLs, or provider responses.
                 print(f'WORKER_ERROR channel={stable} id={converted.message_id} type={type(exc).__name__}', file=sys.stderr, flush=True)
@@ -121,6 +157,9 @@ def run(channels):
         reader.client.run_until_disconnected()
     finally:
         reader.close()
+        # The raw record is durable even if the process is stopped while
+        # queued. Pending jobs are not silently retried on subsequent starts.
+        processing_pool.shutdown(wait=False, cancel_futures=True)
 
 
 def main():
