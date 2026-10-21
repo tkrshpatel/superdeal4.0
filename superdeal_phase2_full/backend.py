@@ -347,9 +347,9 @@ class Backend:
                             if name:
                                 prior_names.add(product_name_key(name))
                     kept_indices, duplicate_indices = select_new_products(parsed['products'], prior_names)
-                    for idx in kept_indices:
+                    for offer_index, idx in enumerate(kept_indices):
                         self.db.fact_table.insert_one({
-                            'raw_id': raw_id, 'offer_index': idx,
+                            'raw_id': raw_id, 'offer_index': offer_index,
                             'publication_id': publication_id, 'product': parsed['products'][idx],
                             'image_enrichment': images[idx],
                             'llm_response': llm_response,
