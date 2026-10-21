@@ -17,7 +17,7 @@ from pymongo.errors import PyMongoError, DuplicateKeyError
 
 LOG = logging.getLogger('superdeal.mongo')
 URL_RE = re.compile(r'https?://[^\s<>"\']+')
-STAGES = {'TELEGRAM', 'EARNKARO', 'LLM', 'VALIDATION', 'IMAGE_ENRICHMENT', 'PUBLICATION'}
+STAGES = {'TELEGRAM', 'EARNKARO', 'LLM', 'VALIDATION', 'IMAGE_ENRICHMENT', 'PRODUCT_RESEARCH', 'PUBLICATION'}
 FIELDS = {'product_name', 'brand', 'ecommerce_platform', 'deal_price', 'original_price', 'discount_percentage', 'affiliate_urls', 'confidence', 'issues'}
 
 
@@ -41,6 +41,7 @@ class Backend:
     def setup(self):
         self.db.raw.create_index([('channel', ASCENDING), ('message_id', ASCENDING)], unique=True)
         self.db.ek_raw.create_index('raw_id', unique=True)
+        self.db.playwright_raw.create_index([('raw_id', ASCENDING), ('affiliate_url', ASCENDING)], unique=True)
         self.db.pipeline_status.create_index('raw_id', unique=True)
         self.db.pipeline_logs.create_index([('raw_id', ASCENDING), ('timestamp', ASCENDING)])
         self.db.fact_table.create_index([('raw_id', ASCENDING), ('offer_index', ASCENDING)], unique=True)
@@ -210,9 +211,36 @@ class Backend:
             self.db.ek_raw.insert_one({'raw_id': raw_id, 'response_text': converted['response_text'],
                                        'response_payload': converted.get('response_payload'), 'created_at': now()})
             self.log(raw_id, stage, 'INFO', 'CONVERTED')
+            # Experiment: collect merchant page evidence before LLM, without
+            # rewriting any EarnKaro URL or changing the default pipeline.
+            research = None
+            llm_input = converted['response_text']
+            if os.getenv('SUPERDEAL_PRE_LLM_RESEARCH') == '1':
+                stage = 'PRODUCT_RESEARCH'
+                self._transition(raw_id, stage)
+                from pre_llm_research import (research_message, llm_evidence,
+                                              persist_research, load_research)
+                try:
+                    research = research_message(converted['response_text'])
+                except Exception as exc:
+                    self.log(raw_id, stage, 'ERROR', 'RESEARCH_FAILED', error=type(exc).__name__)
+                    # A failed research run is retained as diagnostics for every
+                    # EarnKaro link, rather than silently losing source records.
+                    research = {link: {
+                        'status': 'RESEARCH_FAILED', 'product_name': None,
+                        'description': None, 'brand': None, 'image_url': None,
+                        'price': None, 'mrp': None, 'price_source': None,
+                        'mrp_source': None,
+                    } for link in urls(converted['response_text'])}
+                persist_research(self.db.playwright_raw, raw_id, converted['response_text'], research)
+                # Mistral must consume the MongoDB snapshot, not a separate
+                # in-memory version of the scraped information.
+                research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
+                self.log(raw_id, stage, 'INFO', 'RESEARCH_STORED', details={'links': len(research)})
+                llm_input = llm_evidence(converted['response_text'], research)
             stage = 'LLM'
             self._transition(raw_id, stage)
-            llm_response = self.llm(converted['response_text'])
+            llm_response = self.llm(llm_input)
             stage = 'VALIDATION'
             self._transition(raw_id, stage)
             parsed = self.validate(llm_response, converted['response_text'])
@@ -223,8 +251,12 @@ class Backend:
             # a separate background job or retry a failed message.
             stage = 'IMAGE_ENRICHMENT'
             self._transition(raw_id, stage)
-            from image_enrichment import enrich_products
-            images = enrich_products(raw['text'], parsed['products'], scraper=self.image_scraper)
+            if research is not None:
+                from pre_llm_research import research_images
+                images = research_images(parsed['products'], research)
+            else:
+                from image_enrichment import enrich_products
+                images = enrich_products(raw['text'], parsed['products'], scraper=self.image_scraper)
             if len(images) != len(parsed['products']):
                 raise RuntimeError('Image enrichment returned incomplete product results')
             self.log(raw_id, stage, 'INFO', 'ENRICHED', details={

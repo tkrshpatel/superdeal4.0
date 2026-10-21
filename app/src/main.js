@@ -151,7 +151,11 @@ function card(d) {
     <div class="card-content">
       <div class="merchant">${esc(merchant)}</div>
       <h3>${esc(title)}</h3>
-      <div class="price-row"><strong>${money(d.current_price)}</strong>${d.verified_price ? '<span class="verified">✓ Verified</span>' : ''}</div>
+      <div class="price-row">
+        <div class="price-item"><span class="price-label">Current Price</span><strong>${money(d.current_price)}</strong></div>
+        <div class="price-item price-item-mrp"><span class="price-label">Original Price (MRP)</span><span class="mrp-amount">${d.mrp == null ? '—' : money(d.mrp)}</span></div>
+        ${d.verified_price ? '<span class="verified">✓ Verified</span>' : ''}
+      </div>
       <div class="demand-row">
         <span class="${hot?'demand hot':'demand'}">⌁ ${Number(d.click_count||0).toLocaleString('en-IN')} ${Number(d.click_count||0)===1?'person':'people'} clicked</span>
         <span>${age(d.last_seen_at)}</span>
@@ -241,7 +245,10 @@ function showDetail(id) {
       <div class="detail-image"><img src="${esc(d.image_url || '/superdeal-placeholder.svg')}" alt="${esc(title)}"></div>
       <div class="eyebrow">${esc(merchant)}</div>
       <h2>${esc(title)}</h2>
-      <div class="detail-price">${money(d.current_price)}</div>
+      <div class="detail-price">
+        <div class="price-item"><span class="price-label">Current Price</span><strong>${money(d.current_price)}</strong></div>
+        <div class="price-item price-item-mrp"><span class="price-label">Original Price (MRP)</span><span class="mrp-amount">${d.mrp == null ? '—' : money(d.mrp)}</span></div>
+      </div>
       <div class="insights">
         ${Number(d.click_count||0) >= 5 ? '<span>🔥 High demand</span>' : ''}
         ${(d.page_discount_pct || d.discount_pct) ? `<span>${esc(d.page_discount_pct || d.discount_pct)}% off</span>` : ''}

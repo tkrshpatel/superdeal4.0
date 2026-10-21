@@ -15,3 +15,13 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 @media(max-width:1000px){.deal-grid,.skeleton-grid{grid-template-columns:repeat(3,1fr)}.image-wrap{height:190px}.hero{min-height:230px}.hero-stats{min-width:260px}}
 @media(max-width:720px){main{padding:0 14px}.topbar{height:66px;padding:12px 14px}.live-pill{display:none}.hero{display:block;padding:32px 0 22px}.hero h1{font-size:50px;letter-spacing:-3px}.hero-stats{margin-top:25px;min-width:0}.deal-grid,.skeleton-grid{grid-template-columns:repeat(2,1fr);gap:10px}.image-wrap{height:155px}.card-content{padding:11px}.deal-card h3{font-size:12px}.price-row strong{font-size:17px}.demand-row{font-size:7px}.get-deal{padding:9px 5px}.share{width:32px}.section-head h2{font-size:21px}footer{margin:35px 14px 0}.filters{padding-bottom:20px}}
 @media(max-width:430px){.hero h1{font-size:42px}.hero-stats strong{font-size:27px}.hero-stats div{padding:17px 14px}.image-wrap{height:135px}.card-top{left:7px;bottom:7px}.hot-badge,.discount-badge{padding:5px 6px;font-size:7px}.save{right:7px;top:7px;width:30px;height:30px}.detail{padding:0;align-items:end}.detail-sheet{border-radius:23px 23px 0 0}.detail-image{height:220px}}
+
+/* Show current selling price and original MRP without changing deal interactions. */
+.price-row{align-items:flex-end;flex-wrap:wrap;column-gap:14px;row-gap:5px}
+.price-item{display:flex;flex-direction:column;gap:2px;min-width:0}
+.price-label{font-size:9px;font-weight:700;color:var(--muted);letter-spacing:.1px}
+.mrp-amount{font-size:12px;color:var(--muted);font-weight:600}
+.detail-price{display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap}
+.detail-price .price-item strong{font:700 32px 'Space Grotesk';letter-spacing:-1.5px}
+.detail-price .mrp-amount{font-size:18px}
+@media(max-width:430px){.price-row{column-gap:9px}.price-label{font-size:8px}}
