@@ -300,6 +300,14 @@ class Backend:
             # Python, then retain the original strict publication validator.
             restored_response = restore_affiliate_urls(llm_response, converted['response_text'])
             parsed = self.validate(restored_response, converted['response_text'])
+            from price_reconciliation import apply_verified_prices
+            price_updates = apply_verified_prices(
+                parsed['products'], converted['response_text'],
+                raw_text=raw['text'], research=research,
+            )
+            if price_updates:
+                self.log(raw_id, stage, 'INFO', 'SOURCE_PRICES_RESTORED',
+                         details={'products': price_updates})
             if research is not None:
                 from pre_llm_research import fill_missing_mrp
                 fill_missing_mrp(parsed['products'], research)
