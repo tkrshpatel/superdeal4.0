@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 from image_enrichment import (BAD_IMAGE, PLACEHOLDER_IMAGE, _browser_image_loads,
                               _image_candidates, _public_dns, candidate_urls, safe_url)
 from backend import urls
+from marketplace_reconciliation import marketplace_from_page_url
 
 
 TEMPLATE_TITLE = re.compile(r"\{[^{}]{1,60}\}|\$\{[^{}]{1,60}\}", re.I)
@@ -139,7 +140,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
     """Return isolated research per *exact* EarnKaro URL; never modify that URL."""
     links = sorted(urls(earnkaro_message))
     records = {url: {'status': 'NOT_ATTEMPTED', 'product_name': None,
-                     'description': None, 'brand': None, 'image_url': None,
+                     'description': None, 'brand': None, 'marketplace': None, 'image_url': None,
                      'price': None, 'mrp': None, 'price_source': None, 'mrp_source': None}
                for url in links}
     if browser is None:
@@ -181,6 +182,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                 if response and response.status >= 400:
                     records[url]['status'] = 'HTTP_ERROR'
                     continue
+                records[url]['marketplace'] = marketplace_from_page_url(page.url)
                 facts = page.evaluate("""() => {
                   const meta = selectors => {
                     for (const selector of selectors) {
