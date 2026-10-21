@@ -51,18 +51,47 @@ def urls(text):
 
 
 def product_name_key(name):
-    """Conservative exact-name match: case, punctuation and spacing insensitive."""
+    """Normalize conservative spelling variants without merging models or sizes."""
     import unicodedata
     normalized = unicodedata.normalize('NFKC', str(name)).casefold()
-    return ' '.join(re.findall(r'[^\W_]+', normalized, flags=re.UNICODE))
+    # Possessives and colloquial plural forms: men's / mens / men; bra's / bras / bra.
+    normalized = re.sub(r"(?<=\\w)[’']s\\b", '', normalized)
+    tokens = re.findall(r'[^\\W_]+', normalized, flags=re.UNICODE)
+    equivalents = {'mens': 'men', 'womens': 'women', 'bras': 'bra'}
+    return ' '.join(equivalents.get(token, token) for token in tokens)
+
+
+def marketplace_key(marketplace):
+    """Normalize platform labels, never infer unknown affiliate redirect targets."""
+    value = str(marketplace or '').strip().casefold()
+    value = re.sub(r'^https?://', '', value).split('/')[0]
+    value = re.sub(r'^www\\.', '', value)
+    aliases = {
+        'amazon': 'amazon', 'amazon.in': 'amazon', 'amazon india': 'amazon',
+        'flipkart': 'flipkart', 'flipkart.com': 'flipkart',
+        'myntra': 'myntra', 'myntra.com': 'myntra',
+        'ajio': 'ajio', 'ajio.com': 'ajio',
+    }
+    return aliases.get(value, value)
+
+
+def product_duplicate_key(product):
+    """Match only within the same explicitly identified marketplace."""
+    return (marketplace_key(product.get('ecommerce_platform')),
+            product_name_key(product['product_name']))
 
 
 def select_new_products(products, already_published_names):
-    """Return original list indices; never reassign affiliate links or images."""
+    """Keep original indices, including correct link/image association.
+
+    Legacy string keys remain supported for standalone normalization tests.
+    Production supplies full (marketplace, product name) keys.
+    """
     seen = set(already_published_names)
+    legacy = bool(seen) and all(isinstance(item, str) for item in seen)
     kept, duplicates = [], []
     for idx, product in enumerate(products):
-        key = product_name_key(product['product_name'])
+        key = product_name_key(product['product_name']) if legacy else product_duplicate_key(product)
         if key in seen:
             duplicates.append(idx)
         else:
@@ -91,7 +120,7 @@ class Backend:
         self.db.pipeline_status.create_index('status')
         self.db.pipeline_status.create_index([('status', ASCENDING), ('published_at', -1), ('_id', -1)])
         self.db.deal_clicks.create_index([('deal_id', ASCENDING), ('clicked_at', -1)])
-        # Unique _id on dedupe_guards serializes concurrent publications per name.
+        # Unique _id on dedupe_guards serializes concurrent publications per marketplace/name.
 
     def log(self, raw_id, stage, severity, event, *, error=None, details=None):
         item = {'raw_id': raw_id, 'stage': stage, 'severity': severity, 'event': event,
@@ -345,10 +374,11 @@ class Backend:
                 with session.start_transaction():
                     # Per-name writes inside the transaction prevent concurrent
                     # publishers from both passing a stale duplicate read.
-                    keys = sorted({product_name_key(p['product_name']) for p in parsed['products']})
+                    keys = sorted({product_duplicate_key(p) for p in parsed['products']})
                     for key in keys:
                         self.db.dedupe_guards.update_one(
-                            {'_id': key}, {'$inc': {'version': 1}}, upsert=True, session=session
+                            {'_id': json.dumps(key, ensure_ascii=False)},
+                            {'$inc': {'version': 1}}, upsert=True, session=session
                         )
                     prior_names = set()
                     recent_statuses = self.db.pipeline_status.find(
@@ -358,11 +388,11 @@ class Backend:
                     for prior in recent_statuses:
                         for fact in self.db.fact_table.find(
                             {'raw_id': prior['raw_id'], 'publication_id': prior['publication_id']},
-                            {'product.product_name': 1}, session=session
+                            {'product.product_name': 1, 'product.ecommerce_platform': 1}, session=session
                         ):
                             name = (fact.get('product') or {}).get('product_name')
                             if name:
-                                prior_names.add(product_name_key(name))
+                                prior_names.add(product_duplicate_key(fact['product']))
                     kept_indices, duplicate_indices = select_new_products(parsed['products'], prior_names)
                     for offer_index, idx in enumerate(kept_indices):
                         self.db.fact_table.insert_one({
