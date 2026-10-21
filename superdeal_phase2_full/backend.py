@@ -329,6 +329,12 @@ class Backend:
             # Python, then retain the original strict publication validator.
             restored_response = restore_affiliate_urls(llm_response, converted['response_text'])
             parsed = self.validate(restored_response, converted['response_text'])
+            if research is not None:
+                from marketplace_reconciliation import fill_missing_marketplace
+                restored_markets = fill_missing_marketplace(parsed['products'], research)
+                if restored_markets:
+                    self.log(raw_id, stage, 'INFO', 'MARKETPLACES_RESTORED',
+                             details={'products': restored_markets})
             from price_reconciliation import apply_verified_prices
             price_updates = apply_verified_prices(
                 parsed['products'], converted['response_text'],
