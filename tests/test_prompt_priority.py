@@ -6,7 +6,7 @@ def test_earnkaro_precedes_playwright_for_all_fields():
     assert 'PRIMARY authority' in PROMPT
     assert 'SECONDARY' in PROMPT
     assert "preserve EarnKaro's" in PROMPT
-    assert 'matching Playwright' in PROMPT
+    assert 'matched Playwright' in PROMPT
 
 
 def test_explicit_brand_recognition_and_no_merchant_confusion():
