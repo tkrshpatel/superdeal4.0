@@ -20,6 +20,22 @@ URL_RE = re.compile(r'https?://[^\s<>"\']+')
 STAGES = {'TELEGRAM', 'EARNKARO', 'LLM', 'VALIDATION', 'IMAGE_ENRICHMENT', 'PRODUCT_RESEARCH', 'PUBLICATION'}
 FIELDS = {'product_name', 'brand', 'ecommerce_platform', 'deal_price', 'original_price', 'discount_percentage', 'affiliate_urls', 'confidence', 'issues'}
 
+# Safe, fixed validation labels for diagnostics; never log raw model text or URLs.
+VALIDATION_REASONS = frozenset({
+    'Invalid LLM root schema',
+    'No publishable products',
+    'Invalid LLM metadata',
+    'Unassigned URLs block all-or-nothing publication',
+    'Invalid product schema',
+    'Product name required for publication',
+    'Product affiliate URLs required',
+    'Invalid confidence/issues',
+    'Invalid price or discount',
+    'Invalid brand/platform',
+    'Missing, invented, or duplicated affiliate URLs',
+})
+
+
 
 def now():
     return datetime.now(timezone.utc)
@@ -116,7 +132,11 @@ class Backend:
                           'error_message': type(exc).__name__, 'updated_at': now()}})
         except Exception:
             LOG.exception('FAILED_TO_MARK_JOB_FAILED raw_id=%s', raw_id)
-        self.log(raw_id, stage, 'ERROR', 'STAGE_FAILED', error=type(exc).__name__)
+        reason = str(exc) if stage == 'VALIDATION' and type(exc) is ValueError and str(exc) in VALIDATION_REASONS else None
+        self.log(raw_id, stage, 'ERROR', 'STAGE_FAILED', error=type(exc).__name__,
+                 details={'reason': reason} if reason else {})
+        if reason:
+            print(f'VALIDATION_FAILED raw_id={raw_id} reason={reason}', file=sys.stderr, flush=True)
 
     @staticmethod
     def _earnkaro(text):
@@ -145,6 +165,11 @@ class Backend:
     @staticmethod
     def validate(response, source_text):
         parsed = json.loads(response) if isinstance(response, str) else response
+        # Mistral may omit explanatory prose despite returning valid structured
+        # deals. Restore only this non-factual metadata field; never repair
+        # URLs, product records, prices, or unassigned links.
+        if isinstance(parsed, dict) and 'analysis_summary' not in parsed:
+            parsed = {**parsed, 'analysis_summary': ''}
         if not isinstance(parsed, dict) or set(parsed) != {'products', 'unassigned_urls', 'message_issues', 'analysis_summary'}:
             raise ValueError('Invalid LLM root schema')
         products = parsed['products']
