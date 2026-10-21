@@ -47,6 +47,7 @@ def llm_input(converted_text, records=None):
             'product_name': item.get('product_name'),
             'description': item.get('description'),
             'brand': item.get('brand'),
+            'marketplace': item.get('marketplace'),
             'price': item.get('price'),
             'price_source': item.get('price_source'),
             'mrp': item.get('mrp'),
