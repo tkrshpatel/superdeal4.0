@@ -55,8 +55,8 @@ def product_name_key(name):
     import unicodedata
     normalized = unicodedata.normalize('NFKC', str(name)).casefold()
     # Possessives and colloquial plural forms: men's / mens / men; bra's / bras / bra.
-    normalized = re.sub(r"(?<=\\w)[’']s\\b", '', normalized)
-    tokens = re.findall(r'[^\\W_]+', normalized, flags=re.UNICODE)
+    normalized = re.sub(r"(?<=\w)[’']s\b", '', normalized)
+    tokens = re.findall(r'[^\W_]+', normalized, flags=re.UNICODE)
     equivalents = {'mens': 'men', 'womens': 'women', 'bras': 'bra'}
     return ' '.join(equivalents.get(token, token) for token in tokens)
 
@@ -65,7 +65,7 @@ def marketplace_key(marketplace):
     """Normalize platform labels, never infer unknown affiliate redirect targets."""
     value = str(marketplace or '').strip().casefold()
     value = re.sub(r'^https?://', '', value).split('/')[0]
-    value = re.sub(r'^www\\.', '', value)
+    value = re.sub(r'^www\.', '', value)
     aliases = {
         'amazon': 'amazon', 'amazon.in': 'amazon', 'amazon india': 'amazon',
         'flipkart': 'flipkart', 'flipkart.com': 'flipkart',
