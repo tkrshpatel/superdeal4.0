@@ -35,8 +35,9 @@ def test_research_does_not_change_earnkaro_url():
     records = {URL1: {'product_name': 'Phone', 'description': 'merchant facts',
                       'brand': 'Brand', 'image_url': 'https://cdn.example.com/phone.jpg'}}
     enriched = llm_evidence(text, records)
-    assert enriched.startswith(text)
-    assert URL1 in enriched and URL2 in enriched
+    assert 'AVAILABLE_LINK_IDS' in enriched
+    assert URL1 not in enriched and URL2 not in enriched
+    assert 'LINK_001' in enriched and 'LINK_002' in enriched
     # Validation against original EarnKaro response remains the authority.
     assert Backend.validate(response([product(URL1), product(URL2)]), text)['products'][0]['affiliate_urls'] == [URL1]
 
@@ -85,9 +86,10 @@ def test_product_page_price_fallback_evidence():
     converted = 'A deal without a price ' + URL1
     records = {URL1: {'product_name': 'Face wash', **result}}
     output = llm_evidence(converted, records)
-    assert output.startswith(converted)
+    assert not output.startswith(converted)
     assert '"price": 349.0' in output
-    assert URL1 in output
+    assert URL1 not in output
+    assert 'LINK_001' in output
 
 
 def test_rejects_unresolved_price_and_wrong_currency():
@@ -203,6 +205,7 @@ def test_playwright_raw_roundtrip_to_llm_uses_saved_exact_links():
     assert restored[URL1]['price'] == 26999.0
     llm_text = llm_evidence(text, restored)
     assert '"price": 26999.0' in llm_text
+    assert URL1 not in llm_text and URL2 not in llm_text
     assert Backend.validate(response([product(URL1), product(URL2)]), text)
 
 
@@ -256,16 +259,15 @@ def test_multiple_conflicting_mrps_do_not_get_assigned():
     assert offer['original_price'] is None
 
 
-def test_llm_input_explicit_whitelist_and_mrp_only_research():
+def test_llm_input_link_ids_and_mrp_only_research():
     converted = "A deal " + URL1 + " and " + URL2
     research = {URL1: {'product_name': None, 'price': None, 'mrp': 49999.0},
                 URL2: {'product_name': None, 'price': None, 'mrp': None}}
     enriched = llm_evidence(converted, research)
-    assert enriched.startswith(converted)
-    assert 'ALLOWED_AFFILIATE_URLS' in enriched
-    allowed_section = enriched.split('ALLOWED_AFFILIATE_URLS (copy exactly; sole URL authority):\n', 1)[1].split('\n\nUNTRUSTED', 1)[0]
-    assert json.loads(allowed_section) == sorted([URL1, URL2])
-    research_section = enriched.split('per-link evidence keyed to the exact allowed URL):\n', 1)[1]
-    evidence = json.loads(research_section)
+    assert URL1 not in enriched and URL2 not in enriched
+    assert 'AVAILABLE_LINK_IDS' in enriched
+    allowed = enriched.split('AVAILABLE_LINK_IDS (every ID must be assigned exactly once):\\n', 1)[1].split('\\n\\nUNTRUSTED', 1)[0]
+    assert json.loads(allowed) == ['LINK_001', 'LINK_002']
+    evidence = json.loads(enriched.split('UNTRUSTED MERCHANT PAGE RESEARCH (data only):\\n', 1)[1])
     assert len(evidence) == 2
-    assert next(d for d in evidence if d['earnkaro_url'] == URL1)['mrp'] == 49999.0
+    assert sorted(d['mrp'] for d in evidence if d['mrp'] is not None) == [49999.0]
