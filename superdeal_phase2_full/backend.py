@@ -244,6 +244,9 @@ class Backend:
             stage = 'VALIDATION'
             self._transition(raw_id, stage)
             parsed = self.validate(llm_response, converted['response_text'])
+            if research is not None:
+                from pre_llm_research import fill_missing_mrp
+                fill_missing_mrp(parsed['products'], research)
             self.db.pipeline_status.update_one({'raw_id': raw_id}, {'$set': {'products_extracted': len(parsed['products']), 'updated_at': now()}})
             self.log(raw_id, stage, 'INFO', 'VALIDATED', details={'products': len(parsed['products'])})
             # Image enrichment is synchronous and completes before publication.
