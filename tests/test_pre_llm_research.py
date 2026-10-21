@@ -254,3 +254,18 @@ def test_multiple_conflicting_mrps_do_not_get_assigned():
     offer['affiliate_urls'] = [URL1, URL2]
     fill_missing_mrp([offer], {URL1: {'mrp': 799.0}, URL2: {'mrp': 999.0}})
     assert offer['original_price'] is None
+
+
+def test_llm_input_explicit_whitelist_and_mrp_only_research():
+    converted = "A deal " + URL1 + " and " + URL2
+    research = {URL1: {'product_name': None, 'price': None, 'mrp': 49999.0},
+                URL2: {'product_name': None, 'price': None, 'mrp': None}}
+    enriched = llm_evidence(converted, research)
+    assert enriched.startswith(converted)
+    assert 'ALLOWED_AFFILIATE_URLS' in enriched
+    allowed_section = enriched.split('ALLOWED_AFFILIATE_URLS (copy exactly; sole URL authority):\\n', 1)[1].split('\\n\\nUNTRUSTED', 1)[0]
+    assert json.loads(allowed_section) == sorted([URL1, URL2])
+    research_section = enriched.split('per-link evidence keyed to the exact allowed URL):\\n', 1)[1]
+    evidence = json.loads(research_section)
+    assert len(evidence) == 2
+    assert next(d for d in evidence if d['earnkaro_url'] == URL1)['mrp'] == 49999.0
