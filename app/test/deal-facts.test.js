@@ -17,3 +17,23 @@ test('missing or invalid prices never produce invented savings',()=>{
 test('savings are calculated from real price pair and rounded',()=>{
   assert.deepEqual(priceFacts({current_price:16490,mrp:28990}),{current:16490,mrp:28990,saving:12500,discount:43});
 });
+
+test('known store aliases collapse into canonical labels',async()=>{
+  const {normalizeRetailer}=await import('../src/deal-facts.js');
+  for (const value of ['amazon','Amazon',' AMAZON ','amazon.in','aamzon.in','amz.cc','https://www.amazon.in/product?ref=x']) {
+    assert.equal(normalizeRetailer(value),'Amazon',value);
+  }
+  for (const value of ['flkt.cc','Flipkart','FLIPKART.COM','https://flkt.cc/abc']) {
+    assert.equal(normalizeRetailer(value),'Flipkart',value);
+  }
+  assert.equal(normalizeRetailer('myntra.com'),'Myntra');
+  assert.equal(normalizeRetailer('ajio'),'AJIO');
+  assert.equal(normalizeRetailer('custom store'),normalizeRetailer('CUSTOM STORE'));
+  assert.notEqual(normalizeRetailer('amazon.in.evil.example'),'Amazon');
+});
+test('affiliate provider does not masquerade as the destination store',async()=>{
+  const {displayRetailer}=await import('../src/deal-facts.js');
+  assert.equal(displayRetailer({merchant:'EarnKaro',enriched_merchant:'amazon.in'}),'Amazon');
+  assert.equal(displayRetailer({merchant:'EarnKaro',affiliate_url:'https://amz.cc/example'}),'Retailer');
+  assert.equal(displayRetailer({merchant:'Flipkart',enriched_merchant:'Amazon'}),'Flipkart');
+});

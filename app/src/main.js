@@ -1,4 +1,4 @@
-import { priceFacts } from './deal-facts.js';
+import { priceFacts, displayRetailer } from './deal-facts.js';
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -101,7 +101,7 @@ const freshCount = document.querySelector('#fresh-count');
 const hotCount = document.querySelector('#hot-count');
 
 const money = v => v == null ? 'View price at retailer' : `₹${Number(v).toLocaleString('en-IN')}`;
-const displayMerchant = d => String(d.merchant || d.enriched_merchant || '').trim() || 'Retailer';
+const displayMerchant = displayRetailer;
 const displayTitle = d => String(d.product_name || d.page_title || 'View offer details').trim();
 const hasImage = d => !!d.image_url && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
 const offerType = d => d.offer_type || (priceFacts(d).current !== null ? 'Product deal' : 'Offer');

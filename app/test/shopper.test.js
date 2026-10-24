@@ -2,17 +2,18 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {priceFacts} from '../src/deal-facts.js';
+import {priceFacts, displayRetailer} from '../src/deal-facts.js';
 
 const offers = [
   {id:'a',product_name:'LG washer',merchant:'Amazon',current_price:16490,mrp:28990,image_url:'https://images.example/washer.jpg',last_seen_at:new Date().toISOString(),category:'Appliances'},
   {id:'b',product_name:'Chocolate offer',merchant:'Flipkart',current_price:null,category:'Grocery'},
-  {id:'c',product_name:'<script>bad()</script>',merchant:'Amazon',current_price:299},
+  {id:'c',product_name:'<script>bad()</script>',merchant:'amazon.in',current_price:299},
 ];
 async function setup(fail=false) {
   const dom = new JSDOM('<div id="app"></div>',{url:'https://superdeal.example/',runScripts:'outside-only'});
   const w = dom.window;
   w.priceFacts = priceFacts;
+  w.displayRetailer = displayRetailer;
   w.Capacitor = {isNativePlatform:()=>false};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
   w.open = url => {w.lastOpened=url;};
@@ -23,6 +24,7 @@ async function setup(fail=false) {
 test('shopping flow filters, saves, opens details, restores focus and preserves redirect', async()=>{
   const dom=await setup(), w=dom.window, d=w.document;
   assert.equal(d.querySelectorAll('.deal-card').length,3);
+  assert.deepEqual([...d.querySelector('#merchant-filter').options].map(o=>o.textContent), ['All stores','Amazon','Flipkart']);
   assert.equal(d.querySelectorAll('.image-fallback').length,2);
   assert.equal(d.querySelectorAll('.deal-card script').length,0);
   assert.match(d.body.textContent,/Save ₹12,500/);
