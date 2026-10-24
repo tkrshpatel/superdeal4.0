@@ -45,7 +45,7 @@ const app = document.querySelector('#app');
 app.innerHTML = `
 <header class="topbar">
   <a class="brand-mark" href="#" aria-label="SuperDeals home">
-    <span class="brand-identity"><img class="header-logo" src="/brand/superdeals-logo.png" alt="SuperDeals" width="2048" height="683"><small>Deals worth your click.</small></span>
+    <span class="brand-identity"><img class="header-logo" src="/brand/superdeals-logo.png" alt="SuperDeals" width="2048" height="683"></span>
   </a>
   <div class="live-pill"><i></i> LIVE DEALS</div>
 </header>
