@@ -231,3 +231,6 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 /* Keep the hero close to the header without excess vertical centering. */
 .hero{min-height:0;align-items:flex-start;padding-top:24px}
 @media(max-width:720px){.hero{padding-top:24px}}
+
+/* Center the deal counters vertically beside the hero copy. */
+.hero-stats{align-self:center}
