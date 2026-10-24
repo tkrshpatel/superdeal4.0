@@ -35,6 +35,7 @@ def _legacy_deal(product, metadata=None):
         'affiliate_url': urls[0] if urls else None,
         'affiliate_urls': urls,
         'image_url': product.get('image_url'),
+        'deal_terms': product.get('deal_terms'),
         'click_count': metadata.get('click_count'),
         'hot': metadata.get('hot'),
         'last_seen_at': metadata.get('published_at'),
@@ -49,6 +50,10 @@ def make_handler(backend, *, admin_token=None):
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, payload):
+            # Authenticated admin diagnostics retain provenance; shopper routes do not.
+            if not self.path.startswith('/api/v1/admin/'):
+                from public_presentation import public_payload
+                payload = public_payload(payload)
             data = json.dumps(payload, default=str, ensure_ascii=False).encode('utf-8')
             self.send_response(code)
             self.send_header('Content-Type', 'application/json; charset=utf-8')

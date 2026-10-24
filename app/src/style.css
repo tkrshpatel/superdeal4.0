@@ -155,3 +155,12 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .detail-image.image-fallback{background:#fff}
 .detail-image img[data-brand-fallback]{width:85%;height:100%;object-fit:contain}
 .fallback-brand-text{color:#141414;font-size:24px;font-weight:800;letter-spacing:-1px}
+
+.coupon-badge{border-radius:6px;padding:5px 7px;font-size:9px;font-weight:600;background:#f1f6e6;color:#52652b}
+.deal-terms{margin:16px 0;padding:16px;border:1px solid #e3e8d9;border-radius:14px;background:#fafbf7;font-size:14px;line-height:1.6}
+.deal-terms h3{margin:0 0 12px;font-size:16px}.deal-terms h4{margin:14px 0 6px;font-size:13px}
+.coupon-code{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;padding:10px 12px;border:1px dashed #a8b58d;border-radius:8px;background:white}
+.coupon-code code{font-weight:700;overflow-wrap:anywhere;user-select:all;min-width:0}.coupon-code button{border:0;background:#141414;color:white;padding:8px 10px;border-radius:7px;cursor:pointer;flex-shrink:0}
+.deal-terms ol,.deal-terms ul{padding-left:20px}.deal-terms li{margin:6px 0}.deal-terms details{font-size:12px;color:#616b56;overflow-wrap:anywhere}.deal-terms summary{cursor:pointer}.terms-note{font-size:12px;color:#747d6a;margin:10px 0 0}
+
+.deal-card .card-top{max-width:calc(100% - 20px);flex-wrap:wrap}.deal-card .hot-badge{background:#fff0e5;color:#a74b17;font-size:9px;padding:5px 7px}

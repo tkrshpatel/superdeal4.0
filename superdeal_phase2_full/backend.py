@@ -348,6 +348,8 @@ class Backend:
                 fill_missing_mrp(parsed['products'], research)
             self.db.pipeline_status.update_one({'raw_id': raw_id}, {'$set': {'products_extracted': len(parsed['products']), 'updated_at': now()}})
             self.log(raw_id, stage, 'INFO', 'VALIDATED', details={'products': len(parsed['products'])})
+            from deal_terms import extract_deal_terms
+            deal_terms = extract_deal_terms(converted['response_text'], parsed['products'])
             # Image enrichment is synchronous and completes before publication.
             # Missing/blocked images use the local placeholder; they never trigger
             # a separate background job or retry a failed message.
@@ -405,6 +407,7 @@ class Backend:
                             'raw_id': raw_id, 'offer_index': offer_index,
                             'publication_id': publication_id, 'product': parsed['products'][idx],
                             'image_enrichment': images[idx],
+                            'deal_terms': deal_terms[idx],
                             'llm_response': llm_response,
                             'model': os.getenv('OLLAMA_MODEL', 'mistral:instruct'),
                             'created_at': published_at,
@@ -445,7 +448,7 @@ class Backend:
                 self.log(raw_id, 'PUBLICATION', 'ERROR', 'PUBLICATION_INTEGRITY_FAILED')
                 continue
             for fact in facts:
-                results.append({'id': str(fact['_id']), **fact['product'], 'image_url': (fact.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (fact.get('image_enrichment') or {}).get('status')})
+                results.append({'id': str(fact['_id']), **fact['product'], 'deal_terms': fact.get('deal_terms'), 'image_url': (fact.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (fact.get('image_enrichment') or {}).get('status')})
                 if len(results) >= limit:
                     return results
         return results
@@ -473,7 +476,7 @@ class Backend:
         if offset:
             pipeline.append({'$skip': offset})
         pipeline.append({'$limit': limit})
-        pipeline.append({'$project': {'product': 1, 'image_enrichment': 1}})
+        pipeline.append({'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1}})
         return pipeline
 
     def published_page(self, *, limit=20, offset=0):
@@ -481,7 +484,7 @@ class Backend:
             raise ValueError('Invalid pagination')
         docs = list(self.db.fact_table.aggregate(
             self._published_pipeline(offset=offset, limit=limit + 1)))
-        items = [{'id': str(doc['_id']), **doc['product'], 'image_url': (doc.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (doc.get('image_enrichment') or {}).get('status')} for doc in docs[:limit]]
+        items = [{'id': str(doc['_id']), **doc['product'], 'deal_terms': doc.get('deal_terms'), 'image_url': (doc.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (doc.get('image_enrichment') or {}).get('status')} for doc in docs[:limit]]
         return {'items': items, 'limit': limit, 'offset': offset,
                 'has_more': len(docs) > limit}
 
@@ -530,17 +533,17 @@ class Backend:
                 {'$addFields': {'_click_count': {'$ifNull': [{'$arrayElemAt': ['$_clicks.count', 0]}, 0]}}},
                 {'$sort': {'_click_count': -1, '_publication.published_at': -1, '_id': -1}},
                 {'$limit': limit + 1},
-                {'$project': {'product': 1, 'image_enrichment': 1}},
+                {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1}},
             ])
             docs = list(self.db.fact_table.aggregate(pipeline))
-            return {'items': [{'id': str(d['_id']), **d['product'], 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]],
+            return {'items': [{'id': str(d['_id']), **d['product'], 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]],
                     'has_more': len(docs) > limit}
         order = {'newest': {'_publication.published_at': -1, '_id': -1},
                  'price_asc': {'product.deal_price': 1, '_id': -1},
                  'price_desc': {'product.deal_price': -1, '_id': -1}}[sort]
-        pipeline.extend([{'$sort': order}, {'$limit': limit + 1}, {'$project': {'product': 1, 'image_enrichment': 1}}])
+        pipeline.extend([{'$sort': order}, {'$limit': limit + 1}, {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1}}])
         docs = list(self.db.fact_table.aggregate(pipeline))
-        return {'items': [{'id': str(d['_id']), **d['product'], 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit}
+        return {'items': [{'id': str(d['_id']), **d['product'], 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit}
 
     def public_metadata(self, deal_id):
         """Derived only from committed publication and observed click records.
@@ -600,7 +603,7 @@ class Backend:
         except (InvalidId, TypeError):
             return None
         docs = list(self.db.fact_table.aggregate(self._published_pipeline(limit=1, fact_id=oid)))
-        return {'id': str(docs[0]['_id']), **docs[0]['product'], 'image_url': (docs[0].get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (docs[0].get('image_enrichment') or {}).get('status')} if docs else None
+        return {'id': str(docs[0]['_id']), **docs[0]['product'], 'deal_terms': docs[0].get('deal_terms'), 'image_url': (docs[0].get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (docs[0].get('image_enrichment') or {}).get('status')} if docs else None
 
 
 def connect():

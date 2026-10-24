@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {JSDOM} from 'jsdom';
-import {priceFacts, displayRetailer} from '../src/deal-facts.js';
+import {priceFacts, displayRetailer, isHotDeal} from '../src/deal-facts.js';
 
 const offers = [
   {id:'a',product_name:'LG washer',merchant:'Amazon',current_price:16490,mrp:28990,image_url:'https://images.example/washer.jpg',last_seen_at:new Date().toISOString(),category:'Appliances'},
@@ -13,6 +13,7 @@ async function setup(fail=false) {
   const dom = new JSDOM('<div id="app"></div>',{url:'https://superdeal.example/',runScripts:'outside-only'});
   const w = dom.window;
   w.priceFacts = priceFacts;
+  w.isHotDeal = isHotDeal;
   w.displayRetailer = displayRetailer;
   w.Capacitor = {isNativePlatform:()=>false};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
@@ -81,5 +82,67 @@ test('unknown retailers cannot leak diagnostic labels or oversized buttons',asyn
   assert.equal(d.querySelector('.get-deal').textContent,'Get deal ↗');
   assert.doesNotMatch(d.querySelector('.deal-card').textContent,/UNTRUSTED|Product deal|Retailer/);
   assert.equal(d.querySelector('#merchant-filter').options[1].textContent,'SuperDeals Find');
+  dom.window.close();
+});
+
+
+test('EarnKaro terms show scoped coupon, conditions, source and copy action',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  let copied='';
+  Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async value=>{copied=value;}}});
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{
+    id:'coupon',product_name:'Phone',merchant:'Amazon',current_price:12999,
+    deal_terms:{source:'earnkaro',has_coupon:true,coupon_codes:['SAVE100'],
+      instructions:['Apply SAVE100 at checkout'],conditions:['Minimum order ₹999'],
+      source_excerpts:['<script>not executable</script>']}
+  }]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('.coupon-badge').textContent,'Coupon available');
+  d.querySelector('.title-button').click();
+  assert.match(d.querySelector('.deal-terms').textContent,/Minimum order ₹999/);
+  assert.equal(d.querySelector('.deal-terms script'),null);
+  assert.match(d.querySelector('.detail-sheet .price-row').textContent,/12,999/);
+  d.querySelector('[data-copy-code]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(copied,'SAVE100');
+  assert.equal(d.querySelector('[data-copy-code]').textContent,'Copied');
+  dom.window.close();
+});
+
+
+test('old coupon excerpts render FT without exposing providers or channel metadata',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{
+    id:'private',product_name:'@private_channel Phone',page_title:'Phone',merchant:'Telegram',
+    description:'Nice phone\nJoin Telegram @private_channel',current_price:999,
+    deal_terms:{source:'earnkaro',has_coupon:true,coupon_codes:[],instructions:[],conditions:[],
+      source_excerpts:['Coupon : FT','Join Telegram @private_channel']}
+  }]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  d.querySelector('.title-button').click();
+  assert.match(d.querySelector('.deal-terms').textContent,/Below are details:/);
+  assert.equal(d.querySelector('.coupon-code code').textContent,'FT');
+  assert.doesNotMatch(d.body.textContent,/earnkaro|telegram|private_channel|Coupon mentioned|Eligibility and final|Confirm the final price|From the/i);
+  assert.equal(d.querySelector('.detail-cta').textContent,'Get deal ↗');
+  dom.window.close();
+});
+
+
+test('hot badge, count and filter use discounts above 50 percent',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[
+    {id:'hot',product_name:'Hot product',merchant:'Amazon',current_price:499,mrp:1000},
+    {id:'half',product_name:'Half price',merchant:'Amazon',current_price:500,mrp:1000,click_count:100},
+    {id:'missing',product_name:'Unknown saving',merchant:'Amazon',current_price:299,discount_pct:90}
+  ]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelectorAll('.hot-badge').length,1);
+  assert.equal(d.querySelector('#hot-count').textContent,'1');
+  d.querySelector('[data-filter=hot]').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  assert.match(d.querySelector('.deal-card').textContent,/Hot product/);
   dom.window.close();
 });

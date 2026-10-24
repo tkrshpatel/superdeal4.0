@@ -1,4 +1,4 @@
-import { priceFacts, displayRetailer } from './deal-facts.js';
+import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -22,7 +22,7 @@ function openDeal(id) {
 
 const FILTERS = [
   ['latest', 'Latest', 'newest'],
-  ['hot', '🔥 Hot', 'popular'],
+  ['hot', '🔥 Hot', 'newest'],
   ['drops', 'With savings', 'newest'],
   ['under499', '₹ Under 499', 'newest'],
   ['discount', '50%+ off', 'newest'],
@@ -107,12 +107,35 @@ const hotCount = document.querySelector('#hot-count');
 
 const money = v => v == null ? 'View price at website' : `₹${Number(v).toLocaleString('en-IN')}`;
 const displayMerchant = displayRetailer;
-const displayTitle = d => String(d.product_name || d.page_title || 'View offer details').trim();
-const hasImage = d => !!d.image_url && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
-const offerType = d => d.offer_type || (priceFacts(d).current !== null ? 'Product deal' : 'Offer');
+const displayTitle = d => shopperText(d.product_name) || shopperText(d.page_title) || 'SuperDeals Find';
+const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
+const offerType = d => priceFacts(d).current !== null ? 'Product deal' : 'Offer';
 function priceMarkup(d) {
   const p = priceFacts(d);
   return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${money(p.current)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : ''}</div>`;
+}
+// Defence in depth for old APIs and cached records: never render source metadata.
+const privateText = /earn\s*karo|telegram|(?:https?:\/\/)?(?:t\.me|telegram\.me)\/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research/i;
+const shopperText = value => String(value ?? '').split('\n').filter(line=>!privateText.test(line)).join('\n').trim();
+function supportedTerms(d) {
+  const t=d.deal_terms;
+  return t && typeof t==='object' ? t : null;
+}
+function termsMarkup(d) {
+  const t=supportedTerms(d);
+  if (!t) return '';
+  const lines=key=>Array.isArray(t[key])?t[key].filter(v=>typeof v==='string').map(shopperText).filter(Boolean):[];
+  const codes=lines('coupon_codes');
+  // Older published records may contain only a short explicit coupon excerpt.
+  for (const line of lines('source_excerpts')) {
+    const match=line.match(/^coupon\s*:\s*([A-Za-z0-9][A-Za-z0-9_-]{1,29})\s*$/i);
+    if (match && !codes.includes(match[1]) && !/^\d+$/.test(match[1])) codes.push(match[1]);
+  }
+  const details=[...new Set([...lines('instructions'),...lines('conditions')])];
+  if (!codes.length && !details.length) return '';
+  return `<section class="deal-terms" aria-label="Deal details"><h3>Below are details:</h3>
+    ${codes.map(code=>`<div class="coupon-code"><code>${esc(code)}</code><button type="button" data-copy-code="${esc(code)}">Copy code</button></div>`).join('')}
+    ${details.length?`<ul>${details.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:''}</section>`;
 }
 const shareIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -132,7 +155,7 @@ function card(d) {
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}</div>
+      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>
@@ -149,7 +172,7 @@ function card(d) {
 function render(list) {
   freshCount.textContent = state.deals.length;
   document.querySelector('#result-count').textContent = `${list.length} offers in this feed`;
-  hotCount.textContent = state.deals.filter(d => Number(d.click_count||0) >= 5).length;
+  hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
     dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
     return;
@@ -174,14 +197,14 @@ function applyImageFallbacks(container) {
 
 function localFilter(list) {
   const q = state.query.toLowerCase();
-  let result = list.filter(d => !q || `${displayTitle(d)} ${displayMerchant(d)} ${d.product_name} ${d.raw_text||''}`.toLowerCase().includes(q));
+  let result = list.filter(d => !q || `${displayTitle(d)} ${displayMerchant(d)} ${shopperText(d.product_name)}`.toLowerCase().includes(q));
   const merchant = document.querySelector('#merchant-filter').value;
   const category = document.querySelector('#category-filter').value;
   result = result.filter(d => (!merchant || displayMerchant(d) === merchant) && (!category || d.category === category));
   if (state.active === 'drops') result = result.filter(d => priceFacts(d).saving > 0);
   if (state.active === 'under499') result = result.filter(d => priceFacts(d).current !== null && priceFacts(d).current < 500);
   if (state.active === 'discount') result = result.filter(d => priceFacts(d).discount >= 50);
-  if (state.active === 'hot') result = result.filter(d => Number(d.click_count||0) >= 5);
+  if (state.active === 'hot') result = result.filter(isHotDeal);
   if (state.active === 'saved') result = result.filter(d => state.saved.has(String(d.id)));
   return result;
 }
@@ -217,17 +240,15 @@ function setFilter(id) {
   document.querySelectorAll('[data-filter]').forEach(b => {b.classList.toggle('active', b.dataset.filter === id);b.setAttribute('aria-pressed', String(b.dataset.filter === id));});
   const titles = {
     latest:['JUST IN','Latest deals'],
-    hot:['HIGH DEMAND','Hot right now'],
+    hot:['OVER 50% OFF','Hot deals'],
     drops:['COMPARE & SAVE','Offers with savings'],
     under499:['BUDGET FINDS','Under ₹499'],
     discount:['BIG SAVINGS','50%+ off'],
     saved:['YOUR LIST','Saved deals'],
   };
   [sectionKicker.textContent, sectionTitle.textContent] = titles[id] || titles.latest;
-  if (id === 'hot') sortEl.value = 'popular';
-  else if (id !== 'saved') sortEl.value = 'newest';
+  if (id !== 'saved') sortEl.value = 'newest';
   render(localFilter(state.deals));
-  if (id === 'hot') load('popular');
 }
 
 function save(id) {
@@ -252,11 +273,11 @@ function showDetail(id) {
       <div class="eyebrow">${esc(merchant)} · ${esc(offerType(d))}</div>
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
-      <div class="insights">${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
-      ${d.description?`<p class="offer-description">${esc(d.description)}</p>`:''}
+      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT · Over 50% off</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
+      ${termsMarkup(d)}
+      ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
-      <p class="detail-note">Confirm the final price, variant, delivery charges and offer conditions at the retailer. Prices and availability may change.</p>
-      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">Shop ${esc(merchant)} ↗</a>
+      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
     </div>`;
   applyImageFallbacks(detail);
   detail.classList.remove('hidden');
@@ -305,14 +326,27 @@ dealsEl.addEventListener('click', e => {
   const open = e.target.closest('[data-open]');
   if (open) showDetail(open.dataset.open);
 });
-detail.addEventListener('click', e => {
+detail.addEventListener('click', async e => {
+  const copy=e.target.closest('[data-copy-code]');
+  if (copy) {
+    try {
+      await navigator.clipboard.writeText(copy.dataset.copyCode);
+      copy.textContent='Copied';
+      setTimeout(()=>{copy.textContent='Copy code';},1500);
+    } catch {
+      copy.textContent='Select code to copy';
+      const selection=window.getSelection(), range=document.createRange();
+      range.selectNodeContents(copy.previousElementSibling);selection.removeAllRanges();selection.addRange(range);
+    }
+    return;
+  }
   const go = e.target.closest('[data-detail-go]');
   if (go && IS_NATIVE) { e.preventDefault(); openDeal(go.dataset.detailGo); return; }
   if (e.target.closest('[data-close]') || e.target === detail) closeDetail();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail();
   if (e.key === 'Tab' && !detail.classList.contains('hidden')) {
-    const nodes = [...detail.querySelectorAll('button, a[href]')];
+    const nodes = [...detail.querySelectorAll('button, a[href], summary')];
     const first=nodes[0], last=nodes.at(-1);
     if (e.shiftKey && document.activeElement===first) {e.preventDefault();last.focus();}
     else if (!e.shiftKey && document.activeElement===last) {e.preventDefault();first.focus();}

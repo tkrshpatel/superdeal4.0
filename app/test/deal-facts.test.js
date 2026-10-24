@@ -45,3 +45,12 @@ test('unrecognized retailer labels always use the discovery fallback',async()=>{
     assert.equal(displayRetailer({merchant}),'SuperDeals Find');
   }
 });
+
+
+test('hot uses strict unrounded discount and requires a valid price pair',async()=>{
+  const {isHotDeal}=await import('../src/deal-facts.js');
+  assert.equal(isHotDeal({current_price:499,mrp:1000}),true);
+  assert.equal(isHotDeal({current_price:500,mrp:1000}),false);
+  assert.equal(isHotDeal({current_price:501,mrp:1000}),false);
+  assert.equal(isHotDeal({current_price:200,discount_pct:80}),false);
+});
