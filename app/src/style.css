@@ -221,3 +221,9 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .store-chevron{display:block;flex:0 0 12px;align-self:center}
 .section-head .sort-control select{height:40px}
 @media(max-width:720px){.store-picker>summary{min-width:105px;font-size:11px}.store-control{gap:4px}}
+
+/* Use the shared brand artwork in the header, with its full proportions. */
+.brand-mark .brand-identity{display:flex;flex-direction:column;align-items:center}
+.brand-mark .header-logo{display:block;width:190px;height:auto;object-fit:contain}
+.brand-mark .brand-identity small{margin-top:-8px;font-size:10px;letter-spacing:.1px}
+@media(max-width:480px){.brand-mark .header-logo{width:165px}.brand-mark .brand-identity small{font-size:9px;margin-top:-6px}}
