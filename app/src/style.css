@@ -252,3 +252,8 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 /* Keep product alerts beside product search. */
 .search-actions{display:flex;align-items:stretch;gap:12px}.search-actions .search-wrap{flex:1;min-width:0}.search-notify{display:flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;min-height:56px;padding:0 20px;border:1px solid #cbd2c2;border-radius:16px;background:#f7f9f1;color:#34412a;font:600 13px inherit;cursor:pointer}.search-notify:hover{background:#eaf0de;border-color:#9caa88}.search-notify svg{flex-shrink:0}
 @media(max-width:480px){.search-actions{gap:8px}.search-notify{padding:0 11px;gap:5px;font-size:12px}.search-actions .search-wrap{padding:0 10px;gap:6px}.search-actions .search-wrap input{font-size:13px}}
+
+/* Explain the alert action alongside search without squeezing its input. */
+.search-notify{max-width:290px;text-align:left;white-space:normal;padding:10px 16px}.search-notify>span{display:flex;flex-direction:column;gap:3px}.search-notify strong{font-size:13px;color:var(--ink)}.search-notify>span>span{font-size:11px;line-height:1.4;font-weight:400}
+@media(max-width:720px){.search-notify{max-width:185px;padding:8px 10px}.search-notify strong{font-size:12px}.search-notify>span>span{font-size:10px}}
+@media(max-width:480px){.search-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,42%)}.search-notify{max-width:none;width:100%;gap:6px}.search-notify svg{width:16px;height:16px}.search-notify>span>span{font-size:10px}.search-actions .search-wrap{height:auto;min-height:64px}}
