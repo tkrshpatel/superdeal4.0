@@ -35,3 +35,15 @@ Watch NEW published deals: existing fact records are deliberately unchanged. For
 Backend extraction tests cover source preservation, code detection, coupon without code, ambiguous associations, shared links, bank/app restrictions, no-coupon wording and no price mutation. API tests verify published terms survive the legacy adapter. Frontend tests exercise the badge, detail rendering, Copy code, HTML escaping and unchanged price.
 
 Production build and focused tests run without contacting real merchants, Telegram, EarnKaro or a live MongoDB replica set. Real message wording and phone layout still need local validation.
+
+## Replay one historical real deal locally
+
+With this branch's API and frontend running, execute from the repository root:
+
+```powershell
+.\.venv\Scripts\python.exe superdeal_replay_coupon.py --publish
+```
+
+This scans up to 500 saved EarnKaro messages, selects a complete published single-product message with supported instructions, and republishes one copy through the existing validated transactional pipeline. It reuses stored product fields and exact affiliate URLs, bypassing new EarnKaro/LLM/merchant calls. The name gets `[ARCHIVED PREVIEW <unique id>]` so it is clearly identifiable and does not collide with ordinary duplicate names. The original records are not modified. The preview is inserted into the existing local MongoDB database and becomes visible through the normal publication gate. It is for demonstration; historical prices, codes and eligibility may have expired. No automated deletion or channel posting is performed.
+
+Without `--publish`, the command only reports a matching source and its terms. If no eligible message is found, it does not publish a made-up example. Use `--limit 5000` to inspect more saved records if necessary. Refresh the webpage, search `ARCHIVED PREVIEW` and open the matching title. Normal MongoDB replica-set transaction support is required. The running Telegram worker is not required for this replay.
