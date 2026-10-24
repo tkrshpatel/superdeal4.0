@@ -138,3 +138,9 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .deal-card .card-meta .merchant{flex:1;min-width:0;margin:0;overflow:hidden;text-overflow:ellipsis}
 .posted-badge{flex:0 0 auto;white-space:nowrap;background:#f2f4ef;color:#7b8374;border-radius:5px;padding:3px 6px;font-size:9px;font-weight:400;line-height:1.2;letter-spacing:0}
 @media(max-width:720px){.card-meta{gap:5px}.posted-badge{font-size:8px;padding:3px 4px}}
+
+/* Give the image more room within the same card; retain the action slot. */
+.deal-card .image-wrap{height:175px;flex-basis:175px;padding:8px 18px}
+.deal-card .card-content{padding-top:8px;row-gap:5px}
+@media(max-width:720px){.deal-card .image-wrap{height:170px;flex-basis:170px;padding:8px 16px}}
+@media(max-width:380px){.deal-card .image-wrap{height:175px;flex-basis:175px}}
