@@ -80,7 +80,6 @@ app.innerHTML = `
         <option value="newest">Newest</option><option value="popular">Most clicked</option>
         <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
       </select></label>
-      <span id="result-count" role="status"></span>
     </div>
   </section>
   <section class="section-head">
@@ -173,7 +172,6 @@ function card(d) {
 function render(list) {
   const counts=state.counts;
   freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
-  document.querySelector('#result-count').textContent = `${list.length} offers in this feed`;
   hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
     dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
