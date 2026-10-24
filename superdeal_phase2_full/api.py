@@ -35,6 +35,7 @@ def _legacy_deal(product, metadata=None):
         'affiliate_url': urls[0] if urls else None,
         'affiliate_urls': urls,
         'image_url': product.get('image_url'),
+        'deal_terms': product.get('deal_terms'),
         'click_count': metadata.get('click_count'),
         'hot': metadata.get('hot'),
         'last_seen_at': metadata.get('published_at'),

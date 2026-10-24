@@ -83,3 +83,28 @@ test('unknown retailers cannot leak diagnostic labels or oversized buttons',asyn
   assert.equal(d.querySelector('#merchant-filter').options[1].textContent,'SuperDeals Find');
   dom.window.close();
 });
+
+
+test('EarnKaro terms show scoped coupon, conditions, source and copy action',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  let copied='';
+  Object.defineProperty(w.navigator,'clipboard',{value:{writeText:async value=>{copied=value;}}});
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{
+    id:'coupon',product_name:'Phone',merchant:'Amazon',current_price:12999,
+    deal_terms:{source:'earnkaro',has_coupon:true,coupon_codes:['SAVE100'],
+      instructions:['Apply SAVE100 at checkout'],conditions:['Minimum order ₹999'],
+      source_excerpts:['<script>not executable</script>']}
+  }]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('.coupon-badge').textContent,'Coupon available');
+  d.querySelector('.title-button').click();
+  assert.match(d.querySelector('.deal-terms').textContent,/Minimum order ₹999/);
+  assert.equal(d.querySelector('.deal-terms script'),null);
+  assert.match(d.querySelector('.detail-sheet .price-row').textContent,/12,999/);
+  d.querySelector('[data-copy-code]').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(copied,'SAVE100');
+  assert.equal(d.querySelector('[data-copy-code]').textContent,'Copied');
+  dom.window.close();
+});

@@ -56,3 +56,14 @@ def test_web_adapter_preserves_published_image():
     assert result['image_url'] == product['image_url']
     assert result['enrichment_status'] == 'FOUND'
     assert result['current_price'] is None
+
+
+def test_api_adapter_preserves_terms_without_touching_price_or_urls():
+    from api import _legacy_deal
+    from deal_terms import extract_deal_terms
+    product={'id':'offer', 'affiliate_urls':['https://example.com/offer'], 'deal_price':12999}
+    product['deal_terms']=extract_deal_terms('Phone\nhttps://example.com/offer\nUse code SAVE100 at checkout', [product])[0]
+    result=_legacy_deal(product)
+    assert result['deal_terms']['coupon_codes']==['SAVE100']
+    assert result['current_price']==12999
+    assert result['affiliate_url']=='https://example.com/offer'

@@ -114,6 +114,23 @@ function priceMarkup(d) {
   const p = priceFacts(d);
   return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${money(p.current)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : ''}</div>`;
 }
+function supportedTerms(d) {
+  const t=d.deal_terms;
+  return t && t.source === 'earnkaro' ? t : null;
+}
+function termsMarkup(d) {
+  const t=supportedTerms(d);
+  if (!t) return '';
+  const codes=Array.isArray(t.coupon_codes)?t.coupon_codes.filter(c=>typeof c==='string'):[];
+  const lines=key=>Array.isArray(t[key])?t[key].filter(v=>typeof v==='string'):[];
+  return `<section class="deal-terms" aria-label="How to get this deal"><h3>How to get this deal</h3>
+    ${codes.map(code=>`<div class="coupon-code"><code>${esc(code)}</code><button type="button" data-copy-code="${esc(code)}">Copy code</button></div>`).join('')}
+    ${t.has_coupon && !codes.length?'<p class="terms-note">Coupon mentioned. Check the retailer for the code or activation steps.</p>':''}
+    ${lines('instructions').length?`<ol>${lines('instructions').map(v=>`<li>${esc(v)}</li>`).join('')}</ol>`:''}
+    ${lines('conditions').length?`<h4>Offer conditions</h4><ul>${lines('conditions').map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:''}
+    <details><summary>From the EarnKaro message</summary>${lines('source_excerpts').map(v=>`<p>${esc(v)}</p>`).join('')}</details>
+    <p class="terms-note">Eligibility and final savings must be confirmed at checkout. Benefits are not deducted from the displayed price.</p></section>`;
+}
 const shareIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const age = value => {
@@ -132,7 +149,7 @@ function card(d) {
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}</div>
+      <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>
@@ -253,6 +270,7 @@ function showDetail(id) {
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
       <div class="insights">${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
+      ${termsMarkup(d)}
       ${d.description?`<p class="offer-description">${esc(d.description)}</p>`:''}
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
       <p class="detail-note">Confirm the final price, variant, delivery charges and offer conditions at the retailer. Prices and availability may change.</p>
@@ -305,14 +323,27 @@ dealsEl.addEventListener('click', e => {
   const open = e.target.closest('[data-open]');
   if (open) showDetail(open.dataset.open);
 });
-detail.addEventListener('click', e => {
+detail.addEventListener('click', async e => {
+  const copy=e.target.closest('[data-copy-code]');
+  if (copy) {
+    try {
+      await navigator.clipboard.writeText(copy.dataset.copyCode);
+      copy.textContent='Copied';
+      setTimeout(()=>{copy.textContent='Copy code';},1500);
+    } catch {
+      copy.textContent='Select code to copy';
+      const selection=window.getSelection(), range=document.createRange();
+      range.selectNodeContents(copy.previousElementSibling);selection.removeAllRanges();selection.addRange(range);
+    }
+    return;
+  }
   const go = e.target.closest('[data-detail-go]');
   if (go && IS_NATIVE) { e.preventDefault(); openDeal(go.dataset.detailGo); return; }
   if (e.target.closest('[data-close]') || e.target === detail) closeDetail();
 });
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail();
   if (e.key === 'Tab' && !detail.classList.contains('hidden')) {
-    const nodes = [...detail.querySelectorAll('button, a[href]')];
+    const nodes = [...detail.querySelectorAll('button, a[href], summary')];
     const first=nodes[0], last=nodes.at(-1);
     if (e.shiftKey && document.activeElement===first) {e.preventDefault();last.focus();}
     else if (!e.shiftKey && document.activeElement===last) {e.preventDefault();first.focus();}
