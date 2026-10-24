@@ -1,0 +1,39 @@
+# Set SUPERDEAL_DOMAIN to the real hostname and SUPERDEAL_DIST to the absolute
+# app/dist path. Validate before use. Only the built frontend is served.
+{$SUPERDEAL_DOMAIN} {
+    header {
+        -Server
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "no-referrer"
+        Permissions-Policy "camera=(), microphone=(), geolocation=()"
+        Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+    }
+    request_body {
+        max_size 16KB
+    }
+    route {
+        @blocked path /.env /.env.* /.git /.git/* /api/v1/admin /api/v1/admin/*
+        respond @blocked 404
+        @unsupported not method GET HEAD
+        respond @unsupported 405
+        @api path /deals /deals/* /go/* /health /api/v1/deals /api/v1/deals/*
+        handle @api {
+            reverse_proxy 127.0.0.1:8000 {
+                header_down -Server
+                transport http {
+                    dial_timeout 3s
+                    response_header_timeout 30s
+                }
+            }
+        }
+        handle {
+            root * {$SUPERDEAL_DIST}
+            try_files {path} /index.html
+            file_server {
+                hide .git .env .env.* *.map
+            }
+        }
+    }
+}

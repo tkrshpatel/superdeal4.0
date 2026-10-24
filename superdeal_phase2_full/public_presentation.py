@@ -5,6 +5,14 @@ PRIVATE_TEXT = re.compile(r'earn\s*karo|telegram|(?:https?://)?(?:t\.me|telegram
 PRIVATE_KEYS = {'raw_text','source_excerpts','source','raw_id','response_text','response_payload','llm_response','analysis_summary','issues','message_issues','channel','channel_name','channel_username','telegram_channel','preview_source_raw_id'}
 TEXT_KEYS = {'product_name','page_title','brand','merchant','ecommerce_platform','enriched_merchant','description','offer_type','instructions','conditions','coupon_codes'}
 
+PUBLIC_DEAL_KEYS = {'id','product_name','page_title','brand','merchant','ecommerce_platform',
+    'enriched_merchant','current_price','deal_price','mrp','original_price','discount_pct',
+    'discount_percentage','page_discount_pct','affiliate_url','affiliate_urls','image_url',
+    'deal_terms','click_count','hot','last_seen_at','first_seen_at','last_verified_at',
+    'verified_price','fresh','enrichment_status','description','category','offer_type',
+    'has_coupon','has_card_offer','has_cod','return_days'}
+PUBLIC_TERM_KEYS = {'coupon_codes','has_coupon','has_bank_offer','instructions','conditions'}
+
 
 def shopper_text(value):
     if not isinstance(value,str): return value
@@ -13,6 +21,8 @@ def shopper_text(value):
 
 def public_payload(value, key=None):
     if isinstance(value,dict):
+        if 'id' in value and 'product_name' in value:
+            value = {k:v for k,v in value.items() if k in PUBLIC_DEAL_KEYS}
         if key == 'deal_terms':
             value = dict(value)
             codes = list(value.get('coupon_codes') or [])
@@ -22,10 +32,14 @@ def public_payload(value, key=None):
                 if match and not match[1].isdigit() and match[1] not in codes:
                     codes.append(match[1])
             value['coupon_codes'] = codes
+            value = {k:v for k,v in value.items() if k in PUBLIC_TERM_KEYS}
         return {k:public_payload(v,k) for k,v in value.items() if k not in PRIVATE_KEYS}
     if isinstance(value,list):
         output=[public_payload(v,key) for v in value]
         return [v for v in output if v != ''] if key in TEXT_KEYS else output
-    if key == 'image_url' and isinstance(value,str) and PRIVATE_TEXT.search(value):
-        return None
+    if key == 'image_url' and isinstance(value,str):
+        from http_security import safe_destination
+        local_path = value.startswith('/') and not value.startswith('//') and '\\' not in value
+        if PRIVATE_TEXT.search(value) or (not local_path and not safe_destination(value)):
+            return None
     return shopper_text(value) if key in TEXT_KEYS else value

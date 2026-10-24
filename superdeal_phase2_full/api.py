@@ -8,6 +8,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
 from backend import connect
+from http_security import safe_destination, RequestBudget
 
 
 def _integer(values, key, default, maximum):
@@ -44,11 +45,31 @@ def _legacy_deal(product, metadata=None):
     }
 
 
-def make_handler(backend, *, admin_token=None):
+def make_handler(backend, *, admin_token=None, request_budget=None):
     """Inject backend for isolated tests; no connection created on import."""
     token = admin_token if admin_token is not None else os.getenv('SUPERDEAL_ADMIN_TOKEN', '')
 
+    budget = request_budget or RequestBudget()
+
     class Handler(BaseHTTPRequestHandler):
+        server_version = 'SuperDeals'
+        sys_version = ''
+
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(10)
+
+        def end_headers(self):
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Referrer-Policy', 'no-referrer')
+            self.send_header('X-Frame-Options', 'DENY')
+            self.send_header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+            super().end_headers()
+
+        def log_message(self, format, *args):
+            # Do not log URLs, query strings, credentials or affiliate tokens.
+            return
+
         def _send(self, code, payload):
             # Authenticated admin diagnostics retain provenance; shopper routes do not.
             if not self.path.startswith('/api/v1/admin/'):
@@ -59,14 +80,26 @@ def make_handler(backend, *, admin_token=None):
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Cache-Control', 'no-store')
-            self.send_header('X-Content-Type-Options', 'nosniff')
             self.end_headers()
             self.wfile.write(data)
 
         def do_GET(self):
-            url = urlsplit(self.path)
+            if not budget.allow(self.client_address[0]):
+                self.send_response(429)
+                self.send_header('Retry-After','30')
+                self.send_header('Cache-Control','no-store')
+                self.send_header('Content-Length','0')
+                self.end_headers()
+                return
+            if len(self.path)>4096:
+                return self._send(414, {'error':'request_too_long'})
             try:
-                params = parse_qs(url.query, keep_blank_values=True)
+                url = urlsplit(self.path)
+                params = parse_qs(url.query, keep_blank_values=True, max_num_fields=16)
+                if any(len(values)!=1 for values in params.values()):
+                    raise ValueError('Repeated parameters')
+                if any(len(values[0])>512 for values in params.values()):
+                    raise ValueError('Parameter too long')
                 if url.path == '/health':
                     backend.db.command('ping')
                     return self._send(200, {'status': 'ok'})
@@ -106,7 +139,7 @@ def make_handler(backend, *, admin_token=None):
                     if not hasattr(backend, 'affiliate_destination'):
                         return self._send(404, {'error': 'not_found'})
                     destination = backend.affiliate_destination(deal_id)
-                    if destination is None:
+                    if not safe_destination(destination):
                         return self._send(404, {'error': 'not_found'})
                     backend.record_affiliate_click(deal_id)
                     self.send_response(302)
@@ -153,7 +186,7 @@ def make_handler(backend, *, admin_token=None):
                     return self._send(200, {'items': docs})
                 return self._send(404, {'error': 'not_found'})
             except ValueError as exc:
-                return self._send(400, {'error': 'bad_request', 'detail': str(exc)})
+                return self._send(400, {'error': 'bad_request', 'detail': 'Invalid request parameters.'})
             except Exception:
                 # Do not leak stack traces or secrets in HTTP responses.
                 import logging

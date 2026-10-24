@@ -15,7 +15,7 @@ function openDeal(id) {
     // Open outside the embedded WebView. The OS/browser handles supported app links.
     Browser.open({url}).catch(() => { window.location.href = url; });
   } else {
-    window.open(url, '_blank', 'noopener');
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -306,7 +306,7 @@ function showDetail(id) {
       ${termsMarkup(d)}
       ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
-      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
+      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + encodeURIComponent(String(d.id))))}" target="_blank" rel="noopener noreferrer">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
     </div>`;
   applyImageFallbacks(detail);
   detail.classList.remove('hidden');
@@ -377,8 +377,8 @@ dealsEl.addEventListener('click', e => {
   if (share) {
     e.stopPropagation();
     const d = state.deals.find(x => String(x.id) === String(share.dataset.share));
-    if (navigator.share) { const title = displayTitle(d); navigator.share({title, text:`${title} — ${money(d.current_price)}`, url:new URL(API('/go/'+d.id), location.origin).href}).catch(()=>{}); }
-    else navigator.clipboard?.writeText(new URL(API('/go/'+d.id), location.origin).href).then(()=>{toast.textContent='Deal link copied'; toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),1500);}).catch(()=>{});
+    if (navigator.share) { const title = displayTitle(d); navigator.share({title, text:`${title} — ${money(d.current_price)}`, url:new URL(API('/go/'+encodeURIComponent(String(d.id))), location.origin).href}).catch(()=>{}); }
+    else navigator.clipboard?.writeText(new URL(API('/go/'+encodeURIComponent(String(d.id))), location.origin).href).then(()=>{toast.textContent='Deal link copied'; toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),1500);}).catch(()=>{});
     return;
   }
   const go = e.target.closest('[data-go]');

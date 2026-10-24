@@ -591,14 +591,11 @@ class Backend:
 
     def affiliate_destination(self, deal_id):
         """Return an exact, validated published affiliate URL; never rewrite it."""
-        from urllib.parse import urlsplit
+        from http_security import safe_destination
         item = self.published_offer_by_id(deal_id)
         if not item: return None
         for url in item.get('affiliate_urls') or []:
-            if not isinstance(url, str): continue
-            parsed = urlsplit(url)
-            if parsed.scheme in ('https', 'http') and parsed.hostname and not parsed.username and not parsed.password and not any(c in url for c in '\r\n'):
-                return url
+            if safe_destination(url): return url
         return None
 
     def record_affiliate_click(self, deal_id):

@@ -3,7 +3,7 @@ import './api-bridge.css';
 
 const native = Capacitor.isNativePlatform();
 const stored = (localStorage.getItem('superdeal-api-base') || '').trim().replace(/\/$/, '');
-if (stored) globalThis.__SUPERDEAL_API__ = stored;
+if (native && stored) globalThis.__SUPERDEAL_API__ = stored;
 
 function showSetup() {
   if (!native || document.querySelector('#api-setup-overlay')) return;
