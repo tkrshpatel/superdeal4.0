@@ -68,7 +68,10 @@ app.innerHTML = `
     <span>⌕</span><input id="search" aria-label="Search deals, brands or stores" type="search" placeholder="Search deals, brands or stores…" autocomplete="off">
     <button id="clear" class="clear hidden" aria-label="Clear search">×</button>
   </section>
-  <button id="get-notified" class="search-notify" type="button"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span><strong>Can’t find it?</strong><span>Click here to get notified when a deal goes live.</span></span></button>
+  <aside class="deal-alert-feature" aria-label="Personal product deal alerts">
+    <div class="alert-feature-copy"><span class="alert-feature-kicker">A DEAL WORTH WAITING FOR</span><strong>Don’t miss the right deal.</strong><span>Tell us the product. We’ll email you when a matching deal goes live.</span></div>
+    <button id="get-notified" class="search-notify" type="button"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Get notified</span><span aria-hidden="true">↗</span></button>
+  </aside>
   </div>
 
   <section class="filter-panel" aria-label="Browse and filter offers">
