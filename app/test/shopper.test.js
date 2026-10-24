@@ -31,8 +31,8 @@ test('shopping flow filters, saves, opens details, restores focus and preserves 
   assert.equal(d.querySelectorAll('.offer-type').length,0);
   assert.equal(d.querySelectorAll('.deal-card script').length,0);
   assert.doesNotMatch(d.body.textContent,/commission|affiliate links/i);
-  assert.ok(d.querySelector('.filter-panel #sort'));
-  assert.ok(d.querySelector('.filter-panel #merchant-filter'));
+  assert.ok(d.querySelector('.section-head #sort'));
+  assert.ok(d.querySelector('.section-head #merchant-filter'));
   assert.match(d.body.textContent,/Save ₹12,500/);
   assert.match(d.body.textContent,/View price at website/);
   assert.doesNotMatch(d.body.textContent,/0 people clicked|44.44/);
@@ -157,5 +157,22 @@ test('fresh/24-hour counter uses server totals, not the loaded card count',async
   assert.equal(d.querySelector('#fresh-count').nextElementSibling.textContent,'Fresh / 24-hour deals');
   d.querySelector('[data-filter=saved]').click();
   assert.equal(d.querySelector('#fresh-count').textContent,'20/266');
+  dom.window.close();
+});
+
+
+test('store pills sit beside heading, filter deals and reset correctly',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  assert.ok(d.querySelector('.section-head .store-chips'));
+  assert.ok(d.querySelector('.section-head .sort-control #sort'));
+  assert.equal(d.querySelector('.filter-panel #sort'),null);
+  assert.equal(d.querySelector('.filter-panel #merchant-filter'),null);
+  d.querySelector('[data-store="Flipkart"]').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  assert.equal(d.querySelector('[data-store="Flipkart"]').getAttribute('aria-pressed'),'true');
+  d.querySelector('#reset-filters').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('[data-store=""]').getAttribute('aria-pressed'),'true');
+  assert.equal(d.querySelectorAll('.deal-card').length,3);
   dom.window.close();
 });

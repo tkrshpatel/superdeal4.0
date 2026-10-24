@@ -74,17 +74,17 @@ app.innerHTML = `
       <button class="filter" data-filter="saved" aria-pressed="false">♡ Saved</button>
     </div>
     <div class="browse-controls">
-      <label>Store <select id="merchant-filter"><option value="">All stores</option></select></label>
       <label>Category <select id="category-filter"><option value="">All categories</option></select></label>
-      <label>Sort by <select id="sort" aria-label="Sort deals">
-        <option value="newest">Newest</option><option value="popular">Most clicked</option>
-        <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
-      </select></label>
+
     </div>
   </section>
   <section class="section-head">
-    <div><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
-
+    <div class="deals-heading"><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
+    <div class="store-control"><select id="merchant-filter" hidden aria-hidden="true" tabindex="-1"><option value="">All stores</option></select><div id="store-chips" class="store-chips" role="group" aria-label="Filter by store"></div></div>
+      <label class="sort-control">Sort by <select id="sort" aria-label="Sort deals">
+        <option value="newest">Newest</option><option value="popular">Most clicked</option>
+        <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
+      </select></label>
   </section>
 
   <section id="deals" class="deal-grid" aria-live="polite"></section>
@@ -169,7 +169,12 @@ function card(d) {
     </div></article>`;
 }
 
+function renderStoreFilters() {
+  const select=document.querySelector('#merchant-filter');
+  document.querySelector('#store-chips').innerHTML=[...select.options].map(o=>`<button class="store-chip ${o.value===select.value?'active':''}" data-store="${esc(o.value)}" aria-pressed="${o.value===select.value}">${esc(o.textContent)}</button>`).join('');
+}
 function render(list) {
+  renderStoreFilters();
   const counts=state.counts;
   freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
   hotCount.textContent = state.deals.filter(isHotDeal).length;
@@ -227,7 +232,7 @@ async function load(sort = sortEl.value) {
       const el = document.getElementById(id), previous = el.value;
       el.innerHTML = `<option value="">${label}</option>` + values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
       if (values.includes(previous)) el.value = previous;
-      if (id === 'category-filter') el.closest('label').hidden = values.length === 0;
+      if (id === 'category-filter') {el.closest('label').hidden = values.length === 0;el.closest('.browse-controls').hidden=values.length===0;}
     }
     render(localFilter(state.deals));
   } catch {
@@ -308,7 +313,13 @@ document.querySelector('#reset-filters').addEventListener('click', () => {
   setFilter('latest');
   load('newest');
 });
-document.querySelectorAll('.browse-controls select:not(#sort)').forEach(el=>el.addEventListener('change',()=>render(localFilter(state.deals))));
+document.querySelector('#store-chips').addEventListener('click',e=>{
+  const button=e.target.closest('[data-store]');
+  if (!button) return;
+  document.querySelector('#merchant-filter').value=button.dataset.store;
+  render(localFilter(state.deals));
+});
+document.querySelectorAll('#merchant-filter, #category-filter').forEach(el=>el.addEventListener('change',()=>render(localFilter(state.deals))));
 sortEl.addEventListener('change', () => load(sortEl.value));
 document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.filter)));
 
