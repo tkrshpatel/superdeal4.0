@@ -234,3 +234,35 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 
 /* Center the deal counters vertically beside the hero copy. */
 .hero-stats{align-self:center}
+
+/* Product alerts */
+.notify-product{border:1px solid #c8d5b4;border-radius:999px;padding:10px 16px;background:#edf4df;color:#25351a;font:700 13px inherit;cursor:pointer;white-space:nowrap}
+.notify-product{margin:14px 0;white-space:normal}
+.alert-modal-open{overflow:hidden}.alert-overlay[hidden]{display:none}.alert-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;background:#141a14a6;backdrop-filter:blur(5px)}
+.alert-sheet{position:relative;width:min(100%,470px);max-height:90dvh;overflow:auto;padding:30px;border-radius:24px;background:#fafbf7;box-shadow:0 24px 80px #0003}
+.alert-close{position:absolute;right:16px;top:14px;width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:white;font-size:23px;cursor:pointer}
+.alert-sheet h2{font:700 28px 'Space Grotesk',sans-serif;letter-spacing:-1px;margin:12px 0}.alert-intro{font-size:14px;line-height:1.6;color:var(--muted)}
+.alert-sheet form>label,.alert-preferences label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;margin:16px 0}
+.alert-sheet input:not([type=checkbox]),.alert-sheet select{width:100%;min-height:46px;padding:11px 12px;border:1px solid #d6dbcf;border-radius:10px;background:white;font:inherit;color:var(--ink)}
+.alert-preferences{display:grid;grid-template-columns:1fr 1fr;gap:14px}.alert-preferences label{margin-bottom:0}.alert-hint,.alert-status{font-size:12px;line-height:1.6;color:var(--muted)}
+.alert-sheet form>.alert-consent{flex-direction:row;align-items:flex-start;font-size:12px;font-weight:400;line-height:1.6}.alert-consent input{margin:4px 3px 0 0;flex-shrink:0}
+.alert-submit{display:block;width:100%;min-height:46px;border:0;border-radius:12px;background:#141414;color:#fff;font:700 14px inherit;cursor:pointer}.alert-submit:disabled{opacity:.55;cursor:wait}.alert-status{margin-bottom:0}.alert-sheet [hidden]{display:none}
+@media(max-width:480px){.alert-overlay{padding:12px}.alert-sheet{padding:24px 20px}.alert-preferences{gap:10px}}
+
+/* Compact product alerts stay level with the search field. */
+.search-actions{display:grid;grid-template-columns:minmax(0,1fr) 360px;gap:14px;align-items:center}
+.search-actions .search-wrap{min-width:0}
+.deal-alert-feature{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:56px;padding:9px 12px;border:1px solid #d8e5ab;border-radius:16px;background:linear-gradient(110deg,#f3f7e9,#e9f5ca)}
+.alert-feature-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.alert-feature-copy strong{font:700 14px/1.2 'Space Grotesk',sans-serif;letter-spacing:-.2px;color:#233016}
+.alert-feature-copy>span{font-size:11px;line-height:1.3;color:#5c684b}
+.search-notify{display:flex;align-items:center;justify-content:center;gap:6px;flex-shrink:0;min-height:36px;padding:9px 11px;border:0;border-radius:10px;background:#182213;color:#e0ff92;font-family:inherit;font-size:12px;font-weight:700;white-space:nowrap;cursor:pointer}
+.search-notify:hover{background:#304124}.search-notify svg{width:16px;height:16px;flex-shrink:0}
+@media(max-width:900px){.search-actions{grid-template-columns:minmax(0,1fr) 330px}.deal-alert-feature{gap:9px;padding:9px 10px}.alert-feature-copy strong{font-size:13px}.alert-feature-copy>span{font-size:10px}}
+@media(max-width:720px){.search-actions{grid-template-columns:1fr;gap:10px}.deal-alert-feature{min-height:56px;padding:9px 12px}.alert-feature-copy strong{font-size:14px}.alert-feature-copy>span{font-size:11px}}
+
+/* Keep equal spacing between hero, search/alerts and deal filters. */
+main>.hero{padding-bottom:24px}
+main>.search-actions{margin:0}
+main>.search-actions+.filter-panel{margin-top:24px;margin-bottom:24px}
+main>.filter-panel+.section-head{margin-top:0}

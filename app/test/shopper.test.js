@@ -18,6 +18,7 @@ async function setup(fail=false) {
   w.Capacitor = {isNativePlatform:()=>false};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
   w.open = url => {w.lastOpened=url;};
+  w.eval(fs.readFileSync('src/deal-alerts.js','utf8').replace('export function', 'function'));
   w.eval(fs.readFileSync('src/main.js','utf8').replace(/^import .*;\n/gm,''));
   await new Promise(resolve=>setTimeout(resolve,0));
   return dom;
