@@ -69,24 +69,11 @@ def extract_explicit_prices(converted_text):
 def apply_verified_prices(products, converted_text, *, raw_text=None, research=None):
     """Overwrite model selling price only when source price is unambiguous.
 
-    Original Telegram text is fallback only for a *single* link, because
-    original links may differ from EarnKaro's converted affiliate URLs.
+    EarnKaro is authoritative; exact-link Playwright evidence fills gaps.
+    raw_text remains a compatibility argument and cannot override this order.
     """
     mapping = link_map(converted_text)
     extracted = extract_explicit_prices(converted_text)
-    if raw_text and len(mapping) == 1 and not extracted:
-        # Handle a source URL independent of the EarnKaro converted URL.
-        from backend import URL_RE
-        original_links = URL_RE.findall(raw_text)
-        if len(original_links) == 1:
-            source_with_converted_link = URL_RE.sub(next(iter(mapping.values())), raw_text)
-            explicit = extract_explicit_prices(source_with_converted_link)
-        elif not original_links:
-            explicit = extract_explicit_prices(raw_text + '\n' + next(iter(mapping.values())))
-        else:
-            explicit = {}
-        if explicit:
-            extracted[next(iter(mapping.values()))] = next(iter(explicit.values()))
     count = 0
     for product in products:
         attached = product.get('affiliate_urls') or []
@@ -98,10 +85,14 @@ def apply_verified_prices(products, converted_text, *, raw_text=None, research=N
             if product.get('deal_price') != price:
                 product['deal_price'] = price
                 count += 1
-        elif product.get('deal_price') is None and research:
+        else:
+            # LLM output is formatting, never independent price evidence.
             merchant = {research[u]['price'] for u in attached
-                        if u in research and type(research[u].get('price')) in (int, float)}
-            if len(merchant) == 1 and len(attached) == 1:
-                product['deal_price'] = next(iter(merchant))
+                        if research and u in research
+                        and type(research[u].get('price')) in (int, float)
+                        and 0 < research[u]['price'] < 100000000}
+            price = next(iter(merchant)) if len(merchant) == 1 and len(attached) == 1 else None
+            if product.get('deal_price') != price:
+                product['deal_price'] = price
                 count += 1
     return count

@@ -25,3 +25,110 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .detail-price .price-item strong{font:700 32px 'Space Grotesk';letter-spacing:-1.5px}
 .detail-price .mrp-amount{font-size:18px}
 @media(max-width:430px){.price-row{column-gap:9px}.price-label{font-size:8px}}
+/* Shopper refresh: readable offers and honest missing-data states. */
+:root{--muted:#60665c}.eyebrow{font-size:11px;color:#656e5e}.brand-mark small{font-size:11px;color:#62685d}.hero p{font-size:16px}.filter{font-size:13px;padding:11px 16px;cursor:pointer}.browse-controls{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin:0 0 24px}.browse-controls label{font-size:13px;color:var(--muted);display:flex;align-items:center;gap:8px}.browse-controls select,.section-head select{font:inherit;font-size:13px;padding:10px;border:1px solid var(--line);border-radius:10px;background:white}.browse-controls #result-count{margin-left:auto;font-size:13px;color:var(--muted)}.deal-grid{align-items:start}.image-wrap{height:205px;padding:16px;background:#fff}.image-fallback{height:112px;background:linear-gradient(125deg,#eef2df,#f5f6f0);padding:16px;justify-content:flex-start}.fallback-copy{display:flex;flex-direction:column;gap:4px}.fallback-copy>span{font-weight:800;color:#596345;font-size:13px}.fallback-copy b{font-size:19px}.fallback-copy small{font-size:12px;color:var(--muted)}.image-fallback .card-top{left:auto;right:12px;bottom:12px}.card-content{padding:18px}.merchant{font-size:11px;letter-spacing:.6px;color:#596050;display:flex;align-items:center;gap:6px;flex-wrap:wrap}.offer-type{font-size:10px;text-transform:none;letter-spacing:0;background:#f2f3ed;padding:3px 6px;border-radius:5px}.deal-card h3{font-size:16px;line-height:1.45;min-height:46px;margin:10px 0 14px}.title-button{border:0;padding:0;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.price-row{align-items:baseline;gap:6px 10px;min-height:32px}.price-row strong{font:700 24px system-ui;letter-spacing:-.7px}.price-row strong.unknown-price{font:600 14px system-ui;letter-spacing:0;color:#626859}.price-row s{font-size:13px;color:var(--muted)}.saving{color:#38613e;font-weight:700;font-size:12px}.offer-conditions{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px}.offer-conditions span{font-size:11px;color:#6c5423;background:#fff7df;border-radius:4px;padding:4px 6px}.demand-row{font-size:11px;color:#62685d;min-height:16px;margin-top:14px}.get-deal{font:700 13px system-ui;min-height:44px;cursor:pointer}.share{display:grid;place-items:center;width:44px;min-height:44px;cursor:pointer}.save{width:38px;height:38px;cursor:pointer}.detail-note{font-size:13px;color:#62685d}.detail-meta span,.insights span{font-size:12px}.detail-cta{font-size:15px}.offer-description{line-height:1.6;font-size:15px;white-space:pre-line}.failed-image{font-size:13px;color:var(--muted)}footer{font-size:12px;gap:24px;line-height:1.5}.toast{font-size:13px}button:focus-visible,a:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #678f23;outline-offset:3px}.search-wrap:focus-within{outline:2px solid #678f23}.search-wrap input{font:inherit;font-size:15px}.detail-price{margin:16px 0}
+@media(max-width:720px){.card-content{padding:13px}.deal-card h3{font-size:14px}.price-row strong{font-size:20px}.get-deal{font-size:12px}.image-wrap{height:160px}.image-fallback{height:100px}.browse-controls{gap:10px}.browse-controls #result-count{width:100%;margin-left:0}.browse-controls label{flex:1}.browse-controls select{max-width:135px}.hero-stats span{font-size:12px}footer{flex-direction:column;gap:8px}.hero-stats{margin-top:20px}.hero h1{line-height:1.02}.section-head select{max-width:145px}}
+@media(max-width:380px){.deal-grid{grid-template-columns:1fr}.image-wrap{height:200px}.image-fallback{height:100px}.deal-card h3{min-height:0}.hero h1{font-size:38px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+/* Equal image and content slots keep every card and action aligned. */
+.deal-grid{align-items:stretch}
+.deal-card{height:410px;display:flex;flex-direction:column;min-width:0}
+.deal-card .image-wrap{height:170px;flex:0 0 170px}
+.deal-card .card-content{flex:1;min-height:0;display:grid;grid-template-rows:20px 44px 44px 20px 1fr 40px;gap:4px;padding:12px}
+.deal-card .merchant{height:20px;overflow:hidden;align-content:flex-start;line-height:1.3}
+.deal-card h3{display:block;height:44px;min-height:0;margin:0;line-height:1.4}
+.deal-card .title-button{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;width:100%;line-height:inherit}
+.deal-card .price-row{height:44px;min-height:0;align-content:flex-start;overflow:hidden}
+.deal-card .price-row strong{max-width:100%;overflow-wrap:anywhere}
+.deal-card .offer-conditions{height:20px;min-height:0;margin:0;overflow:hidden;align-content:flex-start}
+.deal-card .offer-conditions span{padding:2px 4px;font-size:10px}
+.deal-card .demand-row{margin:0;height:16px;align-self:end;font-size:10px}
+.deal-card .card-actions{margin:0;height:40px}
+.deal-card .get-deal{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fallback-copy{max-width:calc(100% - 36px);overflow-wrap:anywhere}
+@media(max-width:720px){
+  .deal-card{height:400px}
+  .deal-card .image-wrap{height:150px;flex-basis:150px}
+  .deal-card .card-content{padding:12px}
+  .deal-card h3{font-size:14px}
+  .deal-card .merchant{font-size:10px}
+}
+@media(max-width:380px){
+  .deal-card{height:410px}
+  .deal-card .image-wrap{height:170px;flex-basis:170px}
+}
+
+/* Group discovery controls in one compact panel. */
+.filter-panel{margin:14px 0 24px;padding:16px;background:rgba(255,255,255,.85);border:1px solid var(--line);border-radius:16px}
+.filter-panel-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:13px;font-weight:700}
+#reset-filters{border:0;background:none;color:#52622d;padding:6px;font:inherit;font-size:12px;text-decoration:underline;cursor:pointer}
+.filter-panel .filters{padding:12px 0;flex-wrap:wrap;overflow:visible;gap:7px}
+.filter-panel .filter{padding:8px 12px;font-size:12px}
+.filter-panel .browse-controls{margin:0;padding-top:12px;border-top:1px solid var(--line);gap:12px;align-items:end}
+.filter-panel .browse-controls label{display:flex;flex-direction:column;align-items:stretch;gap:5px;font-size:11px;font-weight:600;min-width:140px}
+.filter-panel select{width:100%;font-size:13px;max-width:none}
+.filter-panel #result-count{padding-bottom:10px}
+.deal-card .get-deal,.deal-card .share{min-height:40px;height:40px}
+.deal-card .price-row strong{font-size:22px}
+@media(max-width:720px){
+  .filter-panel{padding:12px;margin-bottom:18px}
+  .filter-panel .browse-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .filter-panel .browse-controls label{min-width:0}
+  .filter-panel #result-count{width:auto;margin:0;font-size:11px;padding-bottom:10px}
+  .deal-card .price-row strong{font-size:20px}
+}
+.filter-panel .browse-controls label[hidden]{display:none}
+
+/* One restrained card treatment for every deal, with identical content slots. */
+.deal-grid{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:410px}
+.deal-card{width:100%;height:410px;border-radius:18px;border-color:#e4e7df;box-shadow:0 4px 16px rgba(25,35,15,.035)}
+.deal-card .image-wrap{background:#fff;padding:18px 26px 12px;border-bottom:1px solid #f1f2ed;justify-content:center}
+.deal-card .image-wrap img{max-width:100%;max-height:100%;object-fit:contain}
+.deal-card .image-fallback{background:#fff;justify-content:center}
+.deal-card .fallback-copy{color:#bbc1b4;display:flex;align-items:center;justify-content:center;text-align:center;gap:10px;max-width:100%}
+.deal-card .fallback-copy small{color:#838b7b;font-size:11px;font-weight:400}
+.fallback-symbol{font-size:40px;font-weight:400}
+.deal-card .merchant{color:#69735f;font-size:10px;font-weight:600;letter-spacing:.7px;white-space:nowrap;text-overflow:ellipsis;display:block;line-height:20px}
+.deal-card h3{font-size:15px;font-weight:600;line-height:1.4}
+.deal-card .price-row{min-width:0;align-items:baseline}
+.deal-card .price-row strong.unknown-price{font:400 13px/1.5 'DM Sans',system-ui,sans-serif;letter-spacing:0;color:#7a8173;align-self:center;padding-top:8px;overflow-wrap:normal}
+.deal-card .demand-row{color:#838b7b;font-size:10px;font-weight:400;align-self:center;line-height:16px}
+.deal-card .card-actions{display:grid;grid-template-columns:minmax(0,1fr) 40px;gap:8px;min-width:0}
+.deal-card .get-deal{width:100%;min-width:0;font:600 12px/1.2 'DM Sans',system-ui,sans-serif;border-radius:9px}
+.deal-card .share{width:40px;border-radius:9px}
+.deal-card .save{box-shadow:0 2px 6px rgba(0,0,0,.025)}
+@media(max-width:1000px){.deal-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:720px){
+  .deal-grid{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:400px}
+  .deal-card{height:400px}
+  .deal-card h3{font-size:14px}
+  .deal-card .image-wrap{padding:16px 22px 10px}
+  .deal-card .price-row strong.unknown-price{font-size:12px}
+}
+@media(max-width:380px){.deal-grid{grid-template-columns:minmax(0,1fr);grid-auto-rows:410px}.deal-card{height:410px}}
+
+/* Compact cards: price centered between the title slot and the shop action. */
+.deal-grid{grid-auto-rows:360px}
+.deal-card{height:360px}
+.deal-card .image-wrap{height:140px;flex-basis:140px;padding:12px 24px}
+.deal-card .card-content{grid-template-rows:20px 42px minmax(0,1fr) 36px;gap:6px;padding:12px}
+.deal-card h3{height:42px;line-height:1.4}
+.card-middle{position:relative;min-height:0;min-width:0}
+.deal-card .card-middle .price-row{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);height:auto;min-height:0;max-height:44px;align-content:center;align-items:baseline;row-gap:2px;column-gap:8px}
+.deal-card .card-middle .price-row strong.unknown-price{padding:0;align-self:auto}
+.deal-card .card-middle .offer-conditions{display:none}
+.deal-card .card-middle .demand-row{position:absolute;left:0;right:0;bottom:0;height:14px;line-height:14px;font-size:9px}
+.deal-card .card-actions,.deal-card .get-deal,.deal-card .share{height:36px;min-height:36px}
+@media(max-width:720px){
+  .deal-grid{grid-auto-rows:360px}
+  .deal-card{height:360px}
+  .deal-card .image-wrap{height:135px;flex-basis:135px;padding:10px 20px}
+  .deal-card .card-content{grid-template-rows:20px 40px minmax(0,1fr) 36px}
+  .deal-card h3{height:40px}
+}
+@media(max-width:380px){
+  .deal-grid{grid-auto-rows:360px}
+  .deal-card{height:360px}
+  .deal-card .image-wrap{height:140px;flex-basis:140px}
+}
