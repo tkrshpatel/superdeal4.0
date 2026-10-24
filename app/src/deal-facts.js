@@ -8,7 +8,7 @@ export function priceFacts(d) {
 // Normalize labels only. Affiliate URLs are never changed or used to guess a store.
 const RETAILERS = [
   ['Amazon', ['amazon', 'aamzon', 'amazon.in', 'amazon.com', 'aamzon.in', 'amz.cc', 'amzn.to']],
-  ['Flipkart', ['flipkart', 'flipkart.com', 'flkt.cc']],
+  ['Flipkart', ['flipkart', 'flipkart.com', 'flkt.cc', 'fkrt.cc']],
   ['Myntra', ['myntra', 'myntra.com']],
   ['AJIO', ['ajio', 'ajio.com']],
   ['Nykaa', ['nykaa', 'nykaa.com']],
@@ -21,7 +21,7 @@ const RETAILERS = [
 ];
 export function normalizeRetailer(value) {
   const text = String(value || '').trim().replace(/\s+/g, ' ');
-  if (!text) return '';
+  if (!text || text.startsWith('@')) return '';
   let key = text.toLowerCase().replace(/[./]+$/, '').replace(/^www\./, '');
   // A URL supplied as a merchant label may include a path or a query string.
   try {

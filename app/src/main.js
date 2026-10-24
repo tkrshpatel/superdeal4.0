@@ -66,25 +66,30 @@ app.innerHTML = `
     <button id="clear" class="clear hidden" aria-label="Clear search">×</button>
   </section>
 
-  <section class="filters" aria-label="Deal filters">
-    ${FILTERS.map(([id,label], i) => `<button class="filter ${i===0?'active':''}" data-filter="${id}">${label}</button>`).join('')}
-    <button class="filter" data-filter="saved">♡ Saved</button>
+  <section class="filter-panel" aria-label="Browse and filter offers">
+    <div class="filter-panel-heading"><span>Find your next deal</span><button id="reset-filters" type="button">Reset filters</button></div>
+    <div class="filters" aria-label="Quick deal filters">
+      ${FILTERS.map(([id,label], i) => `<button class="filter ${i===0?'active':''}" aria-pressed="${i===0}" data-filter="${id}">${label}</button>`).join('')}
+      <button class="filter" data-filter="saved" aria-pressed="false">♡ Saved</button>
+    </div>
+    <div class="browse-controls">
+      <label>Store <select id="merchant-filter"><option value="">All stores</option></select></label>
+      <label>Category <select id="category-filter"><option value="">All categories</option></select></label>
+      <label>Sort by <select id="sort" aria-label="Sort deals">
+        <option value="newest">Newest</option><option value="popular">Most clicked</option>
+        <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
+      </select></label>
+      <span id="result-count" role="status"></span>
+    </div>
   </section>
-
-  <div class="browse-controls"><label>Store <select id="merchant-filter"><option value="">All stores</option></select></label><label>Category <select id="category-filter"><option value="">All categories</option></select></label><span id="result-count" role="status"></span></div>
   <section class="section-head">
     <div><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
-    <select id="sort" aria-label="Sort deals">
-      <option value="newest">Newest</option>
-      <option value="popular">Most clicked</option>
-      <option value="price_asc">Lowest price</option>
-      <option value="price_desc">Highest price</option>
-    </select>
+
   </section>
 
   <section id="deals" class="deal-grid" aria-live="polite"></section>
 </main>
-<footer><span>SuperDeal · Discover. Save. Shop.</span><span>Affiliate links may earn us a commission. Purchases happen with the retailer.</span></footer>
+<footer><span>SuperDeal · Discover. Save. Shop.</span></footer>
 <div id="toast" class="toast" role="status"></div>
 <div id="detail" class="detail hidden"></div>
 `;
@@ -196,7 +201,7 @@ async function load(sort = sortEl.value) {
 
 function setFilter(id) {
   state.active = id;
-  document.querySelectorAll('.filter').forEach(b => b.classList.toggle('active', b.dataset.filter === id));
+  document.querySelectorAll('[data-filter]').forEach(b => {b.classList.toggle('active', b.dataset.filter === id);b.setAttribute('aria-pressed', String(b.dataset.filter === id));});
   const titles = {
     latest:['JUST IN','Latest deals'],
     hot:['HIGH DEMAND','Hot right now'],
@@ -237,7 +242,7 @@ function showDetail(id) {
       <div class="insights">${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
       ${d.description?`<p class="offer-description">${esc(d.description)}</p>`:''}
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
-      <p class="detail-note">Confirm the final price, variant, delivery charges and offer conditions at the retailer. Prices and availability may change. SuperDeal may earn a commission from affiliate links.</p>
+      <p class="detail-note">Confirm the final price, variant, delivery charges and offer conditions at the retailer. Prices and availability may change.</p>
       <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">Shop ${esc(merchant)} ↗</a>
     </div>`;
   detail.classList.remove('hidden');
@@ -258,7 +263,14 @@ searchEl.addEventListener('input', () => {
   render(localFilter(state.deals));
 });
 clearEl.addEventListener('click', () => { searchEl.value=''; state.query=''; clearEl.classList.add('hidden'); render(localFilter(state.deals)); searchEl.focus(); });
-document.querySelectorAll('.browse-controls select').forEach(el=>el.addEventListener('change',()=>render(localFilter(state.deals))));
+document.querySelector('#reset-filters').addEventListener('click', () => {
+  searchEl.value=''; state.query=''; clearEl.classList.add('hidden');
+  document.querySelector('#merchant-filter').value='';
+  document.querySelector('#category-filter').value='';
+  setFilter('latest');
+  load('newest');
+});
+document.querySelectorAll('.browse-controls select:not(#sort)').forEach(el=>el.addEventListener('change',()=>render(localFilter(state.deals))));
 sortEl.addEventListener('change', () => load(sortEl.value));
 document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.filter)));
 
