@@ -212,6 +212,8 @@ def make_handler(backend, *, admin_token=None):
 
 
 def main():
+    from runtime_env import load_env
+    load_env()
     host = os.getenv('SUPERDEAL_API_HOST', '127.0.0.1')
     port = int(os.getenv('SUPERDEAL_API_PORT', '8765'))
     if host not in ('127.0.0.1', 'localhost', '::1') and not os.getenv('SUPERDEAL_ALLOW_REMOTE_HTTP') == '1':

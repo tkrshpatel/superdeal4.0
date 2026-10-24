@@ -278,6 +278,8 @@ class Alerts:
 
 
 def main():
+    from runtime_env import load_env
+    load_env()
     import argparse
     from backend import connect
     parser = argparse.ArgumentParser(description='Process opt-in alerts; dry-run by default.')

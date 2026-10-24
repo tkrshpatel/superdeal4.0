@@ -12,7 +12,7 @@ Default mode is **dry-run** with placeholder sender `SuperDeals <alerts@superdea
 
 ## Windows local test
 
-Use the same MongoDB URI/database as your existing phase-2 pipeline. These commands do not start Telegram, EarnKaro, Playwright or Ollama. Keep your existing pipeline running if you want new deals to arrive.
+Keep your existing MongoDB URI/database and API settings in the repository `.env`. These commands do not start Telegram, EarnKaro, Playwright or Ollama. Keep your existing pipeline running if you want new deals to arrive.
 
 ```powershell
 cd C:\Users\Home\superdeal4.0
@@ -21,8 +21,6 @@ git switch --track origin/feat/product-deal-alerts
 .\.venv\Scripts\python.exe -m pip install -r .\superdeal_phase2_full\requirements.txt
 $env:SUPERDEAL_EMAIL_MODE = 'dry-run'
 $env:SUPERDEAL_PUBLIC_URL = 'http://localhost:5174'
-$env:SUPERDEAL_API_HOST = '127.0.0.1'
-$env:SUPERDEAL_API_PORT = '8000'
 # If not already present in this terminal:
 if (-not $env:SUPERDEAL_ADMIN_TOKEN) { $env:SUPERDEAL_ADMIN_TOKEN = & .\.venv\Scripts\python.exe -c "import secrets; print(secrets.token_urlsafe(32))" }
 .\.venv\Scripts\python.exe .\superdeal_phase2_full\api.py
@@ -48,7 +46,7 @@ Get-ChildItem .\data\notification-previews\*.eml | Sort-Object LastWriteTime -De
 
 Open the latest `.eml` in an email viewer, follow its confirmation link and click **Activate my alert**. Run `notifications.py --once` again. If a matching committed deal was published during the last 24 hours, a second `.eml` preview contains the deal. Otherwise the alert remains active and waits. Re-running must not preview the same deal twice. The unsubscribe link opens a confirmation screen; click **Unsubscribe** to stop that product alert.
 
-For continuous processing, omit `--once`. Polling runs every minute. No Windows scheduled task/service is installed automatically. Each new PowerShell window must receive your existing MongoDB settings; these scripts do not automatically load `.env` files. Do not use the legacy `start_superdeal_api.bat`, which starts the older backend.
+For continuous processing, omit `--once`. Polling runs every minute. No Windows scheduled task/service is installed automatically. The API and notification worker automatically load the repository `.env`, using the same precedence as the Telegram runner: existing terminal variables win. API host/port, MongoDB and other existing defaults are unchanged. Restart processes after editing `.env`; remove stale terminal overrides if they point to a different database. Do not use the legacy `start_superdeal_api.bat`, which starts the older backend.
 
 ## Matching and scheduling
 

@@ -630,6 +630,8 @@ class Backend:
 
 
 def connect():
+    from runtime_env import load_env
+    load_env()
     client = MongoClient(os.getenv('MONGODB_URI', 'mongodb://127.0.0.1:27017'), serverSelectionTimeoutMS=5000)
     client.admin.command('ping')
     return Backend(client[os.getenv('MONGODB_DATABASE', 'superdeal')])
