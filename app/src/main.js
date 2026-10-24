@@ -105,7 +105,7 @@ const detail = document.querySelector('#detail');
 const freshCount = document.querySelector('#fresh-count');
 const hotCount = document.querySelector('#hot-count');
 
-const money = v => v == null ? 'View price at retailer' : `₹${Number(v).toLocaleString('en-IN')}`;
+const money = v => v == null ? 'View price at website' : `₹${Number(v).toLocaleString('en-IN')}`;
 const displayMerchant = displayRetailer;
 const displayTitle = d => String(d.product_name || d.page_title || 'View offer details').trim();
 const hasImage = d => !!d.image_url && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
@@ -131,16 +131,16 @@ function card(d) {
   const saved = state.saved.has(String(d.id));
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
-      ${hasImage(d) ? `<img src="${esc(d.image_url)}" alt="${esc(title)}" loading="lazy">` : `<div class="fallback-copy"><span>SD</span><b>${esc(merchant)}</b><small>Explore this offer</small></div>`}
+      ${hasImage(d) ? `<img src="${esc(d.image_url)}" alt="${esc(title)}" loading="lazy">` : `<div class="fallback-copy"><svg width="42" height="42" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="8" y="8" width="32" height="32" rx="6"/><circle cx="18" cy="18" r="3"/><path d="m9 34 10-10 8 8 5-5 7 7"/></svg><small>Discover something good</small></div>`}
       <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
-    <div class="card-content"><div class="merchant">${esc(merchant)} <span class="offer-type">${esc(offerType(d))}</span></div>
+    <div class="card-content"><div class="merchant">${esc(merchant)}</div>
       <h3><button class="title-button" data-open="${esc(d.id)}">${esc(title)}</button></h3>
       ${priceMarkup(d)}
       <div class="offer-conditions">${d.has_coupon?'<span>Coupon required</span>':''}${d.has_card_offer?'<span>Bank offer · check eligibility</span>':''}</div>
       <div class="demand-row"><span>${Number(d.click_count)>=5?`${Number(d.click_count)} clicks`:''}</span><span>${d.last_seen_at?`Posted ${esc(age(d.last_seen_at))}`:'Date unavailable'}</span></div>
-      <div class="card-actions"><button class="get-deal" data-go="${esc(d.id)}">${merchant==='Retailer'?'View offer':`Shop ${esc(merchant)}`} ↗</button><button class="share" data-share="${esc(d.id)}" aria-label="Share ${esc(title)}">${shareIcon}</button></div>
+      <div class="card-actions"><button class="get-deal" data-go="${esc(d.id)}">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</button><button class="share" data-share="${esc(d.id)}" aria-label="Share ${esc(title)}">${shareIcon}</button></div>
     </div></article>`;
 }
 
@@ -155,7 +155,10 @@ function render(list) {
   dealsEl.innerHTML = list.map(card).join('');
   dealsEl.querySelectorAll('img').forEach(img => img.addEventListener('error', () => {
     img.parentElement.classList.add('image-fallback');
-    img.replaceWith(Object.assign(document.createElement('span'), {className:'failed-image', textContent:'Product image unavailable'}));
+    const fallback = document.createElement('div');
+    fallback.className='fallback-copy';
+    fallback.innerHTML='<span class="fallback-symbol" aria-hidden="true">◇</span><small>Discover something good</small>';
+    img.replaceWith(fallback);
   }, {once:true}));
 }
 

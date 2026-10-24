@@ -34,6 +34,14 @@ test('known store aliases collapse into canonical labels',async()=>{
 test('affiliate provider does not masquerade as the destination store',async()=>{
   const {displayRetailer}=await import('../src/deal-facts.js');
   assert.equal(displayRetailer({merchant:'EarnKaro',enriched_merchant:'amazon.in'}),'Amazon');
-  assert.equal(displayRetailer({merchant:'EarnKaro',affiliate_url:'https://amz.cc/example'}),'Retailer');
+  assert.equal(displayRetailer({merchant:'EarnKaro',affiliate_url:'https://amz.cc/example'}),'SuperDeals Find');
   assert.equal(displayRetailer({merchant:'Flipkart',enriched_merchant:'Amazon'}),'Flipkart');
+});
+
+
+test('unrecognized retailer labels always use the discovery fallback',async()=>{
+  const {displayRetailer}=await import('../src/deal-facts.js');
+  for(const merchant of ['UNTRUSTED MERCHANT PAGE RESEARCH','@vintage_deals','Retailer','EarnKaro','random text','unknown.store',null,'']) {
+    assert.equal(displayRetailer({merchant}),'SuperDeals Find');
+  }
 });

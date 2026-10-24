@@ -26,12 +26,13 @@ test('shopping flow filters, saves, opens details, restores focus and preserves 
   assert.equal(d.querySelectorAll('.deal-card').length,3);
   assert.deepEqual([...d.querySelector('#merchant-filter').options].map(o=>o.textContent), ['All stores','Amazon','Flipkart']);
   assert.equal(d.querySelectorAll('.image-fallback').length,2);
+  assert.equal(d.querySelectorAll('.offer-type').length,0);
   assert.equal(d.querySelectorAll('.deal-card script').length,0);
   assert.doesNotMatch(d.body.textContent,/commission|affiliate links/i);
   assert.ok(d.querySelector('.filter-panel #sort'));
   assert.ok(d.querySelector('.filter-panel #merchant-filter'));
   assert.match(d.body.textContent,/Save ₹12,500/);
-  assert.match(d.body.textContent,/View price at retailer/);
+  assert.match(d.body.textContent,/View price at website/);
   assert.doesNotMatch(d.body.textContent,/0 people clicked|44.44/);
   const merchant=d.querySelector('#merchant-filter');
   merchant.value='Flipkart';merchant.dispatchEvent(new w.Event('change'));
@@ -60,9 +61,22 @@ test('shopping flow filters, saves, opens details, restores focus and preserves 
 test('image failures degrade gracefully and loading errors offer retry',async()=>{
   const dom=await setup(), d=dom.window.document;
   d.querySelector('.deal-card img').dispatchEvent(new dom.window.Event('error'));
-  assert.match(d.body.textContent,/Product image unavailable/);
+  assert.match(d.body.textContent,/Discover something good/);
   dom.window.close();
   const offline=await setup(true);
   assert.ok(offline.window.document.querySelector('[data-retry]'));
   offline.window.close();
+});
+
+test('unknown retailers cannot leak diagnostic labels or oversized buttons',async()=>{
+  const dom=await setup(), d=dom.window.document;
+  // Reload with an untrusted merchant label, retaining the normal published fields.
+  dom.window.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'x',product_name:'Wall clock',merchant:'UNTRUSTED MERCHANT PAGE RESEARCH',current_price:318}]})});
+  d.querySelector('#sort').dispatchEvent(new dom.window.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('.merchant').textContent,'SuperDeals Find');
+  assert.equal(d.querySelector('.get-deal').textContent,'Get deal ↗');
+  assert.doesNotMatch(d.querySelector('.deal-card').textContent,/UNTRUSTED|Product deal|Retailer/);
+  assert.equal(d.querySelector('#merchant-filter').options[1].textContent,'SuperDeals Find');
+  dom.window.close();
 });

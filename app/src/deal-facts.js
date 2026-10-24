@@ -31,10 +31,10 @@ export function normalizeRetailer(value) {
   for (const [name, aliases] of RETAILERS) {
     if (aliases.some(alias => key === alias || (alias.includes('.') && key.endsWith(`.${alias}`)))) return name;
   }
-  // EarnKaro is the affiliate service, not evidence of the destination retailer.
-  if (/^(earn\s*karo|earnkaro\.(com|in)|retailer|unknown|superdeal find|n\/a|null|none)$/.test(key)) return '';
-  return text.toLowerCase().replace(/\b\p{L}/gu, char => char.toUpperCase());
+  // Only recognized retailer labels are shown publicly; diagnostics, channel
+  // handles and unknown values share the discovery label instead.
+  return '';
 }
 export function displayRetailer(deal) {
-  return normalizeRetailer(deal.merchant) || normalizeRetailer(deal.enriched_merchant) || 'Retailer';
+  return normalizeRetailer(deal.merchant) || normalizeRetailer(deal.enriched_merchant) || 'SuperDeals Find';
 }
