@@ -260,3 +260,9 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .search-notify:hover{background:#304124}.search-notify svg{width:16px;height:16px;flex-shrink:0}
 @media(max-width:900px){.search-actions{grid-template-columns:minmax(0,1fr) 330px}.deal-alert-feature{gap:9px;padding:9px 10px}.alert-feature-copy strong{font-size:13px}.alert-feature-copy>span{font-size:10px}}
 @media(max-width:720px){.search-actions{grid-template-columns:1fr;gap:10px}.deal-alert-feature{min-height:56px;padding:9px 12px}.alert-feature-copy strong{font-size:14px}.alert-feature-copy>span{font-size:11px}}
+
+/* Keep equal spacing between hero, search/alerts and deal filters. */
+main>.hero{padding-bottom:24px}
+main>.search-actions{margin:0}
+main>.search-actions+.filter-panel{margin-top:24px;margin-bottom:24px}
+main>.filter-panel+.section-head{margin-top:0}
