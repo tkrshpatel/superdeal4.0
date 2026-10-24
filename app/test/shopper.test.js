@@ -164,6 +164,9 @@ test('fresh/24-hour counter uses server totals, not the loaded card count',async
 test('store picker supports search, multiple selections, removable chips and reset',async()=>{
   const dom=await setup(),w=dom.window,d=w.document;
   assert.ok(d.querySelector('.section-head #store-picker'));
+  assert.equal(d.querySelector('#store-label').textContent,'Stores');
+  assert.equal(d.querySelector('#store-value').textContent,'All');
+  assert.doesNotMatch(d.querySelector('#store-summary').textContent,/Stores:/);
   assert.ok(d.querySelector('.section-head .sort-control #sort'));
   assert.equal(d.querySelector('.store-chips'),null);
   d.querySelector('#store-summary').click();

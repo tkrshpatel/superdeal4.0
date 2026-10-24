@@ -81,10 +81,10 @@ app.innerHTML = `
   </section>
   <section class="section-head">
     <div class="deals-heading"><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
-    <div class="store-control">
+    <div class="store-control"><span id="store-label" class="control-label">Stores</span>
       <select id="merchant-filter" hidden aria-hidden="true" tabindex="-1"><option value="">All stores</option></select>
       <details id="store-picker" class="store-picker">
-        <summary id="store-summary">Stores: All <span aria-hidden="true">⌄</span></summary>
+        <summary id="store-summary" aria-labelledby="store-label store-value"><span id="store-value">All</span><svg class="store-chevron" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
         <div class="store-popover" role="region" aria-label="Choose stores">
           <div class="store-popover-head"><strong>Choose stores</strong><button type="button" id="store-done">Done</button></div>
           <input id="store-search" type="search" aria-label="Search stores" placeholder="Search stores…" autocomplete="off">
@@ -188,7 +188,7 @@ function renderStoreFilters() {
   const names=[...new Set([...select.options].map(o=>o.value).filter(Boolean).concat([...state.merchants]))].sort();
   const matches=names.filter(name=>name.toLowerCase().includes(query));
   document.querySelector('#store-options').innerHTML=matches.map(name=>`<label class="store-option"><input type="checkbox" value="${esc(name)}" ${state.merchants.has(name)?'checked':''}><span>${esc(name)}</span></label>`).join('') || '<p class="no-store-match">No stores match your search.</p>';
-  document.querySelector('#store-summary').innerHTML=`Stores: ${state.merchants.size?state.merchants.size+' selected':'All'} <span aria-hidden="true">⌄</span>`;
+  document.querySelector('#store-value').textContent=state.merchants.size?state.merchants.size+' selected':'All';
   const selected=document.querySelector('#selected-stores');
   selected.hidden=!state.merchants.size;
   selected.innerHTML=[...state.merchants].map(name=>`<button class="selected-store" data-remove-store="${esc(name)}" aria-label="Remove ${esc(name)} filter">${esc(name)} <span aria-hidden="true">×</span></button>`).join('')+(state.merchants.size?'<button id="clear-selected-stores" type="button">Clear all stores</button>':'');

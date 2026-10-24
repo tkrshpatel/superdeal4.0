@@ -213,3 +213,11 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
   .store-options{max-height:40vh}.store-option{padding:14px 4px;font-size:15px}
 }
 @media(max-width:450px){.section-head{grid-template-columns:1fr 1fr}.section-head .deals-heading{grid-column:1/-1}.section-head .store-control{grid-column:1;grid-row:2;justify-self:start}.section-head .sort-control{grid-column:2;grid-row:2}}
+
+/* Match the store label, field height and arrow alignment to sorting. */
+.store-control{display:flex;flex-direction:column;gap:4px}
+.control-label{font-size:10px;font-weight:500;color:#6e7764;line-height:normal}
+.store-picker>summary{height:40px;min-width:130px;padding:0 12px;font:400 12px 'DM Sans',system-ui,sans-serif;justify-content:space-between;gap:10px}
+.store-chevron{display:block;flex:0 0 12px;align-self:center}
+.section-head .sort-control select{height:40px}
+@media(max-width:720px){.store-picker>summary{min-width:105px;font-size:11px}.store-control{gap:4px}}
