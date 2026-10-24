@@ -107,29 +107,35 @@ const hotCount = document.querySelector('#hot-count');
 
 const money = v => v == null ? 'View price at website' : `₹${Number(v).toLocaleString('en-IN')}`;
 const displayMerchant = displayRetailer;
-const displayTitle = d => String(d.product_name || d.page_title || 'View offer details').trim();
-const hasImage = d => !!d.image_url && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
-const offerType = d => d.offer_type || (priceFacts(d).current !== null ? 'Product deal' : 'Offer');
+const displayTitle = d => shopperText(d.product_name) || shopperText(d.page_title) || 'SuperDeals Find';
+const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
+const offerType = d => priceFacts(d).current !== null ? 'Product deal' : 'Offer';
 function priceMarkup(d) {
   const p = priceFacts(d);
   return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${money(p.current)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : ''}</div>`;
 }
+// Defence in depth for old APIs and cached records: never render source metadata.
+const privateText = /earn\s*karo|telegram|(?:https?:\/\/)?(?:t\.me|telegram\.me)\/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research/i;
+const shopperText = value => String(value ?? '').split('\n').filter(line=>!privateText.test(line)).join('\n').trim();
 function supportedTerms(d) {
   const t=d.deal_terms;
-  return t && t.source === 'earnkaro' ? t : null;
+  return t && typeof t==='object' ? t : null;
 }
 function termsMarkup(d) {
   const t=supportedTerms(d);
   if (!t) return '';
-  const codes=Array.isArray(t.coupon_codes)?t.coupon_codes.filter(c=>typeof c==='string'):[];
-  const lines=key=>Array.isArray(t[key])?t[key].filter(v=>typeof v==='string'):[];
-  return `<section class="deal-terms" aria-label="How to get this deal"><h3>How to get this deal</h3>
+  const lines=key=>Array.isArray(t[key])?t[key].filter(v=>typeof v==='string').map(shopperText).filter(Boolean):[];
+  const codes=lines('coupon_codes');
+  // Older published records may contain only a short explicit coupon excerpt.
+  for (const line of lines('source_excerpts')) {
+    const match=line.match(/^coupon\s*:\s*([A-Za-z0-9][A-Za-z0-9_-]{1,29})\s*$/i);
+    if (match && !codes.includes(match[1]) && !/^\d+$/.test(match[1])) codes.push(match[1]);
+  }
+  const details=[...new Set([...lines('instructions'),...lines('conditions')])];
+  if (!codes.length && !details.length) return '';
+  return `<section class="deal-terms" aria-label="Deal details"><h3>Below are details:</h3>
     ${codes.map(code=>`<div class="coupon-code"><code>${esc(code)}</code><button type="button" data-copy-code="${esc(code)}">Copy code</button></div>`).join('')}
-    ${t.has_coupon && !codes.length?'<p class="terms-note">Coupon mentioned. Check the retailer for the code or activation steps.</p>':''}
-    ${lines('instructions').length?`<ol>${lines('instructions').map(v=>`<li>${esc(v)}</li>`).join('')}</ol>`:''}
-    ${lines('conditions').length?`<h4>Offer conditions</h4><ul>${lines('conditions').map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:''}
-    <details><summary>From the EarnKaro message</summary>${lines('source_excerpts').map(v=>`<p>${esc(v)}</p>`).join('')}</details>
-    <p class="terms-note">Eligibility and final savings must be confirmed at checkout. Benefits are not deducted from the displayed price.</p></section>`;
+    ${details.length?`<ul>${details.map(v=>`<li>${esc(v)}</li>`).join('')}</ul>`:''}</section>`;
 }
 const shareIcon = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>';
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -191,7 +197,7 @@ function applyImageFallbacks(container) {
 
 function localFilter(list) {
   const q = state.query.toLowerCase();
-  let result = list.filter(d => !q || `${displayTitle(d)} ${displayMerchant(d)} ${d.product_name} ${d.raw_text||''}`.toLowerCase().includes(q));
+  let result = list.filter(d => !q || `${displayTitle(d)} ${displayMerchant(d)} ${shopperText(d.product_name)}`.toLowerCase().includes(q));
   const merchant = document.querySelector('#merchant-filter').value;
   const category = document.querySelector('#category-filter').value;
   result = result.filter(d => (!merchant || displayMerchant(d) === merchant) && (!category || d.category === category));
@@ -271,10 +277,9 @@ function showDetail(id) {
       ${priceMarkup(d)}
       <div class="insights">${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
       ${termsMarkup(d)}
-      ${d.description?`<p class="offer-description">${esc(d.description)}</p>`:''}
+      ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
-      <p class="detail-note">Confirm the final price, variant, delivery charges and offer conditions at the retailer. Prices and availability may change.</p>
-      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">Shop ${esc(merchant)} ↗</a>
+      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
     </div>`;
   applyImageFallbacks(detail);
   detail.classList.remove('hidden');

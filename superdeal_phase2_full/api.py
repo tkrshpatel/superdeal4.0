@@ -50,6 +50,10 @@ def make_handler(backend, *, admin_token=None):
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, payload):
+            # Authenticated admin diagnostics retain provenance; shopper routes do not.
+            if not self.path.startswith('/api/v1/admin/'):
+                from public_presentation import public_payload
+                payload = public_payload(payload)
             data = json.dumps(payload, default=str, ensure_ascii=False).encode('utf-8')
             self.send_response(code)
             self.send_header('Content-Type', 'application/json; charset=utf-8')

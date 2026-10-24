@@ -108,3 +108,22 @@ test('EarnKaro terms show scoped coupon, conditions, source and copy action',asy
   assert.equal(d.querySelector('[data-copy-code]').textContent,'Copied');
   dom.window.close();
 });
+
+
+test('old coupon excerpts render FT without exposing providers or channel metadata',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{
+    id:'private',product_name:'@private_channel Phone',page_title:'Phone',merchant:'Telegram',
+    description:'Nice phone\nJoin Telegram @private_channel',current_price:999,
+    deal_terms:{source:'earnkaro',has_coupon:true,coupon_codes:[],instructions:[],conditions:[],
+      source_excerpts:['Coupon : FT','Join Telegram @private_channel']}
+  }]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  d.querySelector('.title-button').click();
+  assert.match(d.querySelector('.deal-terms').textContent,/Below are details:/);
+  assert.equal(d.querySelector('.coupon-code code').textContent,'FT');
+  assert.doesNotMatch(d.body.textContent,/earnkaro|telegram|private_channel|Coupon mentioned|Eligibility and final|Confirm the final price|From the/i);
+  assert.equal(d.querySelector('.detail-cta').textContent,'Get deal ↗');
+  dom.window.close();
+});

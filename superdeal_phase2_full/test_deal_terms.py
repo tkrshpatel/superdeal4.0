@@ -49,3 +49,8 @@ def test_bank_and_app_only_conditions_are_retained():
 def test_no_coupon_does_not_add_a_coupon_badge():
     result=terms(f'Phone\n{A}\nNo coupon required at checkout')[0]
     assert not result['has_coupon']
+
+
+def test_short_colon_coupon_code():
+    result=terms(f'Phone\n{A}\nCoupon : FT')[0]
+    assert result['coupon_codes']==['FT']

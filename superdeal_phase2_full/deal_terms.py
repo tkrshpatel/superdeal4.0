@@ -7,7 +7,7 @@ exactly one unique EarnKaro URL; detached/global instructions are not assigned.
 import re
 
 URL = re.compile(r'https?://[^\s<>"\']+')
-CODE = re.compile(r'\b(?:coupon\s+code|promo\s+code|use\s+(?:coupon\s+)?code|apply\s+(?:coupon\s+)?code|code\s*:)\s*[:=\-]?\s*[`"\']?([A-Za-z0-9][A-Za-z0-9_-]{2,29})\b', re.I)
+CODE = re.compile(r'\b(?:coupon\s*[:=\-]|promo\s*[:=\-]|coupon\s+code|promo\s+code|use\s+(?:coupon\s+)?code|apply\s+(?:coupon\s+)?code|code\s*:)\s*[:=\-]?\s*[`"\']?([A-Za-z0-9][A-Za-z0-9_-]{1,29})\b', re.I)
 SIGNAL = re.compile(r'\bcoupon\b|\bpromo\b|\bcode\b|cashback|bank\s+offer|\b(?:credit|debit)\s+card\b', re.I)
 STEP = re.compile(r'\bapply\b|\buse\s+(?:coupon\s+)?code\b|checkout|add\s+to\s+cart|collect\s+(?:the\s+)?coupon|\bredeem\b|\bactivate\b|\bselect\b|\bclick\b', re.I)
 CONDITION = re.compile(r'minimum|min\.?\s+(?:order|spend)|orders?\s+(?:above|over)|\b(?:credit|debit)\s+card\b|bank\s+offer|cashback|app[ -]only|new\s+users?|first\s+order|valid\s+(?:until|till)|expires?|expiry|maximum|max\.?\s+(?:discount|cashback)', re.I)
