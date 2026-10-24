@@ -205,7 +205,9 @@ def make_handler(backend, *, admin_token=None):
                 return self._send(200 if success else 400, {'status': 'ok' if success else 'invalid_or_expired'})
             except (ValueError, UnicodeError):
                 return self._send(400, {'error': 'Check the product, email, daily limit and duration, or request a new link.'})
-            except Exception:
+            except Exception as exc:
+                # Print only the exception type; never log recipient details or credentials.
+                print('ALERT_SAVE_ERROR type=' + type(exc).__name__, flush=True)
                 return self._send(503, {'error': 'Alerts are temporarily unavailable. Please try again.'})
 
     return Handler

@@ -57,8 +57,20 @@ export function mountDealAlerts({ api, product = () => '' }) {
   });
   async function post(path, payload) {
     const response = await fetch(api(path), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), cache: 'no-store' });
-    const result = await response.json();
-    if (!response.ok) throw new Error(response.status === 429 ? 'Too many requests. Please try again later.' : 'Could not save this request. Check your details or request a new link.');
+    let result;
+    try { result = await response.json(); }
+    catch { throw new Error('The alert API did not return JSON. Restart the API and frontend, then try again.'); }
+    if (!response.ok) {
+      const messages = {
+        400: 'Check your details, or request a new confirmation link.',
+        403: 'This website address is not allowed by the alert API. Check SUPERDEAL_ALERT_ORIGINS in .env.',
+        404: 'The alert endpoint is unavailable. Restart the updated MongoDB API.',
+        405: 'The running API does not support alerts. Restart the updated MongoDB API.',
+        429: 'Too many requests. Please try again later.',
+        503: 'Alerts could not access storage or email configuration. Check the API terminal for ALERT_SAVE_ERROR.',
+      };
+      throw new Error((messages[response.status] || 'Could not save this request. Please try again.') + ' (HTTP ' + response.status + ')');
+    }
     return result;
   }
   form.addEventListener('submit', async event => {

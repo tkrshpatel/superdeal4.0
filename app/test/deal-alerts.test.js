@@ -58,7 +58,7 @@ test('failed request keeps form and preferences available for retry',async()=>{
   assert.equal(form.hidden,false);
   assert.equal(form.elements.days.value,'14');
   assert.equal(form.querySelector('[type=submit]').disabled,false);
-  assert.match(w.document.querySelector('.alert-status').textContent,/Could not save/);
+  assert.match(w.document.querySelector('.alert-status').textContent,/storage or email configuration/);
   dom.window.close();
 });
 
@@ -83,3 +83,13 @@ test('Escape closes alert dialog and restores focus',()=>{
   assert.equal(w.document.activeElement,trigger);
   dom.window.close();
 });
+
+for (const [status, expected] of [[403,/website address/],[405,/Restart the updated MongoDB API/],[429,/Too many requests/]]) {
+  test(`alert API HTTP ${status} gives actionable feedback`,async()=>{
+    const dom=setup('',()=>({ok:false,status,json:async()=>({})})),w=dom.window,form=fill(w);
+    form.dispatchEvent(new w.Event('submit',{cancelable:true}));await settle();
+    assert.match(w.document.querySelector('.alert-status').textContent,expected);
+    assert.match(w.document.querySelector('.alert-status').textContent,new RegExp('HTTP '+status));
+    dom.window.close();
+  });
+}
