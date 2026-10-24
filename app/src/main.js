@@ -63,11 +63,13 @@ app.innerHTML = `
     </div>
   </section>
 
-  <div class="alert-invite"><span>Waiting for something specific?</span><button id="get-notified" type="button">Get notified <span aria-hidden="true">↗</span></button></div>
+  <div class="search-actions">
   <section class="search-wrap">
     <span>⌕</span><input id="search" aria-label="Search deals, brands or stores" type="search" placeholder="Search deals, brands or stores…" autocomplete="off">
     <button id="clear" class="clear hidden" aria-label="Clear search">×</button>
   </section>
+  <button id="get-notified" class="search-notify" type="button"><svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Get notified</span></button>
+  </div>
 
   <section class="filter-panel" aria-label="Browse and filter offers">
     <div class="filter-panel-heading"><span>Find your next deal</span><button id="reset-filters" type="button">Reset filters</button></div>
