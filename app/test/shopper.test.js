@@ -161,18 +161,34 @@ test('fresh/24-hour counter uses server totals, not the loaded card count',async
 });
 
 
-test('store pills sit beside heading, filter deals and reset correctly',async()=>{
+test('store picker supports search, multiple selections, removable chips and reset',async()=>{
   const dom=await setup(),w=dom.window,d=w.document;
-  assert.ok(d.querySelector('.section-head .store-chips'));
+  assert.ok(d.querySelector('.section-head #store-picker'));
   assert.ok(d.querySelector('.section-head .sort-control #sort'));
-  assert.equal(d.querySelector('.filter-panel #sort'),null);
-  assert.equal(d.querySelector('.filter-panel #merchant-filter'),null);
-  d.querySelector('[data-store="Flipkart"]').click();
+  assert.equal(d.querySelector('.store-chips'),null);
+  d.querySelector('#store-summary').click();
+  assert.equal(d.querySelector('#store-picker').open,true);
+  d.querySelector('#store-search').value='flip';
+  d.querySelector('#store-search').dispatchEvent(new w.Event('input'));
+  assert.equal(d.querySelectorAll('#store-options input').length,1);
+  const choose=name=>{
+    const input=[...d.querySelectorAll('#store-options input')].find(i=>i.value===name);
+    input.checked=true;input.dispatchEvent(new w.Event('change',{bubbles:true}));
+  };
+  choose('Flipkart');
   assert.equal(d.querySelectorAll('.deal-card').length,1);
-  assert.equal(d.querySelector('[data-store="Flipkart"]').getAttribute('aria-pressed'),'true');
+  d.querySelector('#store-search').value='';d.querySelector('#store-search').dispatchEvent(new w.Event('input'));
+  choose('Amazon');
+  assert.equal(d.querySelectorAll('.deal-card').length,3);
+  assert.equal(d.querySelectorAll('.selected-store').length,2);
+  assert.match(d.querySelector('#store-summary').textContent,/2 selected/);
+  d.querySelector('[data-remove-store="Amazon"]').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  d.querySelector('#store-picker').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  assert.equal(d.querySelector('#store-picker').open,false);
   d.querySelector('#reset-filters').click();
   await new Promise(resolve=>setTimeout(resolve,0));
-  assert.equal(d.querySelector('[data-store=""]').getAttribute('aria-pressed'),'true');
-  assert.equal(d.querySelectorAll('.deal-card').length,3);
+  assert.equal(d.querySelector('#selected-stores').hidden,true);
+  assert.match(d.querySelector('#store-summary').textContent,/All/);
   dom.window.close();
 });

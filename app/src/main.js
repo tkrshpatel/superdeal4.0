@@ -34,6 +34,7 @@ const state = {
   query: '',
   loading: false,
   counts: null,
+  merchants: new Set(),
 };
 try {
   const saved = JSON.parse(localStorage.getItem('superdeal-saved') || '[]');
@@ -80,13 +81,25 @@ app.innerHTML = `
   </section>
   <section class="section-head">
     <div class="deals-heading"><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
-    <div class="store-control"><select id="merchant-filter" hidden aria-hidden="true" tabindex="-1"><option value="">All stores</option></select><div id="store-chips" class="store-chips" role="group" aria-label="Filter by store"></div></div>
+    <div class="store-control">
+      <select id="merchant-filter" hidden aria-hidden="true" tabindex="-1"><option value="">All stores</option></select>
+      <details id="store-picker" class="store-picker">
+        <summary id="store-summary">Stores: All <span aria-hidden="true">⌄</span></summary>
+        <div class="store-popover" role="region" aria-label="Choose stores">
+          <div class="store-popover-head"><strong>Choose stores</strong><button type="button" id="store-done">Done</button></div>
+          <input id="store-search" type="search" aria-label="Search stores" placeholder="Search stores…" autocomplete="off">
+          <div id="store-options" class="store-options"></div>
+          <button id="clear-stores" type="button">Clear store filters</button>
+        </div>
+      </details>
+    </div>
       <label class="sort-control">Sort by <select id="sort" aria-label="Sort deals">
         <option value="newest">Newest</option><option value="popular">Most clicked</option>
         <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
       </select></label>
   </section>
 
+  <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
 </main>
 <footer><span>SuperDeal · Discover. Save. Shop.</span></footer>
@@ -171,8 +184,16 @@ function card(d) {
 
 function renderStoreFilters() {
   const select=document.querySelector('#merchant-filter');
-  document.querySelector('#store-chips').innerHTML=[...select.options].map(o=>`<button class="store-chip ${o.value===select.value?'active':''}" data-store="${esc(o.value)}" aria-pressed="${o.value===select.value}">${esc(o.textContent)}</button>`).join('');
+  const query=document.querySelector('#store-search').value.toLowerCase().trim();
+  const names=[...new Set([...select.options].map(o=>o.value).filter(Boolean).concat([...state.merchants]))].sort();
+  const matches=names.filter(name=>name.toLowerCase().includes(query));
+  document.querySelector('#store-options').innerHTML=matches.map(name=>`<label class="store-option"><input type="checkbox" value="${esc(name)}" ${state.merchants.has(name)?'checked':''}><span>${esc(name)}</span></label>`).join('') || '<p class="no-store-match">No stores match your search.</p>';
+  document.querySelector('#store-summary').innerHTML=`Stores: ${state.merchants.size?state.merchants.size+' selected':'All'} <span aria-hidden="true">⌄</span>`;
+  const selected=document.querySelector('#selected-stores');
+  selected.hidden=!state.merchants.size;
+  selected.innerHTML=[...state.merchants].map(name=>`<button class="selected-store" data-remove-store="${esc(name)}" aria-label="Remove ${esc(name)} filter">${esc(name)} <span aria-hidden="true">×</span></button>`).join('')+(state.merchants.size?'<button id="clear-selected-stores" type="button">Clear all stores</button>':'');
 }
+
 function render(list) {
   renderStoreFilters();
   const counts=state.counts;
@@ -203,9 +224,9 @@ function applyImageFallbacks(container) {
 function localFilter(list) {
   const q = state.query.toLowerCase();
   let result = list.filter(d => !q || `${displayTitle(d)} ${displayMerchant(d)} ${shopperText(d.product_name)}`.toLowerCase().includes(q));
-  const merchant = document.querySelector('#merchant-filter').value;
+  const merchants = state.merchants;
   const category = document.querySelector('#category-filter').value;
-  result = result.filter(d => (!merchant || displayMerchant(d) === merchant) && (!category || d.category === category));
+  result = result.filter(d => (!merchants.size || merchants.has(displayMerchant(d))) && (!category || d.category === category));
   if (state.active === 'drops') result = result.filter(d => priceFacts(d).saving > 0);
   if (state.active === 'under499') result = result.filter(d => priceFacts(d).current !== null && priceFacts(d).current < 500);
   if (state.active === 'discount') result = result.filter(d => priceFacts(d).discount >= 50);
@@ -309,17 +330,42 @@ clearEl.addEventListener('click', () => { searchEl.value=''; state.query=''; cle
 document.querySelector('#reset-filters').addEventListener('click', () => {
   searchEl.value=''; state.query=''; clearEl.classList.add('hidden');
   document.querySelector('#merchant-filter').value='';
+  state.merchants.clear();
+  document.querySelector('#store-search').value='';
   document.querySelector('#category-filter').value='';
   setFilter('latest');
   load('newest');
 });
-document.querySelector('#store-chips').addEventListener('click',e=>{
-  const button=e.target.closest('[data-store]');
-  if (!button) return;
-  document.querySelector('#merchant-filter').value=button.dataset.store;
+const storePicker=document.querySelector('#store-picker');
+function closeStorePicker() {storePicker.open=false;document.querySelector('#store-summary').focus();}
+function clearStoreFilters() {
+  state.merchants.clear();document.querySelector('#merchant-filter').value='';
   render(localFilter(state.deals));
+}
+document.querySelector('#store-search').addEventListener('input',renderStoreFilters);
+document.querySelector('#store-options').addEventListener('change',e=>{
+  if (e.target.type!=='checkbox') return;
+  const name=e.target.value;
+  e.target.checked?state.merchants.add(name):state.merchants.delete(name);
+  render(localFilter(state.deals));
+  [...document.querySelectorAll('#store-options input')].find(input=>input.value===name)?.focus();
 });
-document.querySelectorAll('#merchant-filter, #category-filter').forEach(el=>el.addEventListener('change',()=>render(localFilter(state.deals))));
+document.querySelector('#store-done').addEventListener('click',closeStorePicker);
+document.querySelector('#clear-stores').addEventListener('click',clearStoreFilters);
+document.querySelector('#selected-stores').addEventListener('click',e=>{
+  const remove=e.target.closest('[data-remove-store]');
+  if (remove) {state.merchants.delete(remove.dataset.removeStore);render(localFilter(state.deals));document.querySelector('#store-summary').focus();}
+  if (e.target.closest('#clear-selected-stores')) {clearStoreFilters();document.querySelector('#store-summary').focus();}
+});
+document.addEventListener('click',e=>{if(storePicker.open && !storePicker.contains(e.target)) storePicker.open=false;});
+storePicker.addEventListener('keydown',e=>{
+  if (e.key==='Escape') {e.preventDefault();closeStorePicker();}
+});
+// Keep the internal single-select adapter synchronized for integrations.
+document.querySelector('#merchant-filter').addEventListener('change',e=>{
+  state.merchants=new Set(e.target.value?[e.target.value]:[]);render(localFilter(state.deals));
+});
+document.querySelector('#category-filter').addEventListener('change',()=>render(localFilter(state.deals)));
 sortEl.addEventListener('change', () => load(sortEl.value));
 document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.filter)));
 
