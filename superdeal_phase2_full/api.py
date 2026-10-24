@@ -89,6 +89,7 @@ def make_handler(backend, *, admin_token=None):
                             return self._send(400, {'error': 'unsupported_legacy_filters'})
                         page = backend.published_page(limit=limit, offset=0)
                     return self._send(200, {'deals': [_legacy_deal(x, backend.public_metadata(x['id']) if hasattr(backend, 'public_metadata') else None) for x in page['items']],
+                                            'counts': backend.deal_window_counts() if hasattr(backend, 'deal_window_counts') else None,
                                             'fresh_window_hours': 24 if hasattr(backend, 'public_metadata') else None, 'has_more': page['has_more']})
                 if url.path.startswith('/deals/') and url.path.endswith('/price-history'):
                     return self._send(501, {'error': 'price_history_not_implemented', 'detail': 'No independent price observations have been collected'})

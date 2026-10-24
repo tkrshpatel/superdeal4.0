@@ -31,8 +31,8 @@ test('shopping flow filters, saves, opens details, restores focus and preserves 
   assert.equal(d.querySelectorAll('.offer-type').length,0);
   assert.equal(d.querySelectorAll('.deal-card script').length,0);
   assert.doesNotMatch(d.body.textContent,/commission|affiliate links/i);
-  assert.ok(d.querySelector('.filter-panel #sort'));
-  assert.ok(d.querySelector('.filter-panel #merchant-filter'));
+  assert.ok(d.querySelector('.section-head #sort'));
+  assert.ok(d.querySelector('.section-head #merchant-filter'));
   assert.match(d.body.textContent,/Save ₹12,500/);
   assert.match(d.body.textContent,/View price at website/);
   assert.doesNotMatch(d.body.textContent,/0 people clicked|44.44/);
@@ -144,5 +144,54 @@ test('hot badge, count and filter use discounts above 50 percent',async()=>{
   d.querySelector('[data-filter=hot]').click();
   assert.equal(d.querySelectorAll('.deal-card').length,1);
   assert.match(d.querySelector('.deal-card').textContent,/Hot product/);
+  dom.window.close();
+});
+
+
+test('fresh/24-hour counter uses server totals, not the loaded card count',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:offers,counts:{fresh_30m:20,total_24h:266}})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('#fresh-count').textContent,'20/266');
+  assert.equal(d.querySelector('#fresh-count').nextElementSibling.textContent,'Fresh / 24-hour deals');
+  d.querySelector('[data-filter=saved]').click();
+  assert.equal(d.querySelector('#fresh-count').textContent,'20/266');
+  dom.window.close();
+});
+
+
+test('store picker supports search, multiple selections, removable chips and reset',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  assert.ok(d.querySelector('.section-head #store-picker'));
+  assert.equal(d.querySelector('#store-label').textContent,'Stores');
+  assert.equal(d.querySelector('#store-value').textContent,'All');
+  assert.doesNotMatch(d.querySelector('#store-summary').textContent,/Stores:/);
+  assert.ok(d.querySelector('.section-head .sort-control #sort'));
+  assert.equal(d.querySelector('.store-chips'),null);
+  d.querySelector('#store-summary').click();
+  assert.equal(d.querySelector('#store-picker').open,true);
+  d.querySelector('#store-search').value='flip';
+  d.querySelector('#store-search').dispatchEvent(new w.Event('input'));
+  assert.equal(d.querySelectorAll('#store-options input').length,1);
+  const choose=name=>{
+    const input=[...d.querySelectorAll('#store-options input')].find(i=>i.value===name);
+    input.checked=true;input.dispatchEvent(new w.Event('change',{bubbles:true}));
+  };
+  choose('Flipkart');
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  d.querySelector('#store-search').value='';d.querySelector('#store-search').dispatchEvent(new w.Event('input'));
+  choose('Amazon');
+  assert.equal(d.querySelectorAll('.deal-card').length,3);
+  assert.equal(d.querySelectorAll('.selected-store').length,2);
+  assert.match(d.querySelector('#store-summary').textContent,/2 selected/);
+  d.querySelector('[data-remove-store="Amazon"]').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  d.querySelector('#store-picker').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  assert.equal(d.querySelector('#store-picker').open,false);
+  d.querySelector('#reset-filters').click();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('#selected-stores').hidden,true);
+  assert.match(d.querySelector('#store-summary').textContent,/All/);
   dom.window.close();
 });

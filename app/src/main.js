@@ -33,6 +33,8 @@ const state = {
   saved: new Set(),
   query: '',
   loading: false,
+  counts: null,
+  merchants: new Set(),
 };
 try {
   const saved = JSON.parse(localStorage.getItem('superdeal-saved') || '[]');
@@ -56,7 +58,7 @@ app.innerHTML = `
       <p>Discover offers from your favourite stores. Compare the details, save your finds and shop directly with the retailer.</p>
     </div>
     <div class="hero-stats">
-      <div><strong id="fresh-count">—</strong><span>fresh deals</span></div>
+      <div><strong id="fresh-count" aria-label="Fresh deals in 30 minutes / deals in 24 hours">—/—</strong><span>Fresh / 24-hour deals</span></div>
       <div><strong id="hot-count">—</strong><span>hot right now</span></div>
     </div>
   </section>
@@ -73,20 +75,31 @@ app.innerHTML = `
       <button class="filter" data-filter="saved" aria-pressed="false">♡ Saved</button>
     </div>
     <div class="browse-controls">
-      <label>Store <select id="merchant-filter"><option value="">All stores</option></select></label>
       <label>Category <select id="category-filter"><option value="">All categories</option></select></label>
-      <label>Sort by <select id="sort" aria-label="Sort deals">
-        <option value="newest">Newest</option><option value="popular">Most clicked</option>
-        <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
-      </select></label>
-      <span id="result-count" role="status"></span>
+
     </div>
   </section>
   <section class="section-head">
-    <div><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
-
+    <div class="deals-heading"><div class="eyebrow" id="section-kicker">JUST IN</div><h2 id="section-title">Latest deals</h2></div>
+    <div class="store-control"><span id="store-label" class="control-label">Stores</span>
+      <select id="merchant-filter" hidden aria-hidden="true" tabindex="-1"><option value="">All stores</option></select>
+      <details id="store-picker" class="store-picker">
+        <summary id="store-summary" aria-labelledby="store-label store-value"><span id="store-value">All</span><svg class="store-chevron" width="12" height="12" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+        <div class="store-popover" role="region" aria-label="Choose stores">
+          <div class="store-popover-head"><strong>Choose stores</strong><button type="button" id="store-done">Done</button></div>
+          <input id="store-search" type="search" aria-label="Search stores" placeholder="Search stores…" autocomplete="off">
+          <div id="store-options" class="store-options"></div>
+          <button id="clear-stores" type="button">Clear store filters</button>
+        </div>
+      </details>
+    </div>
+      <label class="sort-control">Sort by <select id="sort" aria-label="Sort deals">
+        <option value="newest">Newest</option><option value="popular">Most clicked</option>
+        <option value="price_asc">Lowest price</option><option value="price_desc">Highest price</option>
+      </select></label>
   </section>
 
+  <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
 </main>
 <footer><span>SuperDeal · Discover. Save. Shop.</span></footer>
@@ -169,9 +182,22 @@ function card(d) {
     </div></article>`;
 }
 
+function renderStoreFilters() {
+  const select=document.querySelector('#merchant-filter');
+  const query=document.querySelector('#store-search').value.toLowerCase().trim();
+  const names=[...new Set([...select.options].map(o=>o.value).filter(Boolean).concat([...state.merchants]))].sort();
+  const matches=names.filter(name=>name.toLowerCase().includes(query));
+  document.querySelector('#store-options').innerHTML=matches.map(name=>`<label class="store-option"><input type="checkbox" value="${esc(name)}" ${state.merchants.has(name)?'checked':''}><span>${esc(name)}</span></label>`).join('') || '<p class="no-store-match">No stores match your search.</p>';
+  document.querySelector('#store-value').textContent=state.merchants.size?state.merchants.size+' selected':'All';
+  const selected=document.querySelector('#selected-stores');
+  selected.hidden=!state.merchants.size;
+  selected.innerHTML=[...state.merchants].map(name=>`<button class="selected-store" data-remove-store="${esc(name)}" aria-label="Remove ${esc(name)} filter">${esc(name)} <span aria-hidden="true">×</span></button>`).join('')+(state.merchants.size?'<button id="clear-selected-stores" type="button">Clear all stores</button>':'');
+}
+
 function render(list) {
-  freshCount.textContent = state.deals.length;
-  document.querySelector('#result-count').textContent = `${list.length} offers in this feed`;
+  renderStoreFilters();
+  const counts=state.counts;
+  freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
   hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
     dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
@@ -198,9 +224,9 @@ function applyImageFallbacks(container) {
 function localFilter(list) {
   const q = state.query.toLowerCase();
   let result = list.filter(d => !q || `${displayTitle(d)} ${displayMerchant(d)} ${shopperText(d.product_name)}`.toLowerCase().includes(q));
-  const merchant = document.querySelector('#merchant-filter').value;
+  const merchants = state.merchants;
   const category = document.querySelector('#category-filter').value;
-  result = result.filter(d => (!merchant || displayMerchant(d) === merchant) && (!category || d.category === category));
+  result = result.filter(d => (!merchants.size || merchants.has(displayMerchant(d))) && (!category || d.category === category));
   if (state.active === 'drops') result = result.filter(d => priceFacts(d).saving > 0);
   if (state.active === 'under499') result = result.filter(d => priceFacts(d).current !== null && priceFacts(d).current < 500);
   if (state.active === 'discount') result = result.filter(d => priceFacts(d).discount >= 50);
@@ -216,7 +242,10 @@ async function load(sort = sortEl.value) {
     const params = new URLSearchParams({limit:'100', sort});
     const response = await fetch(API(`/deals?${params}`), {cache:'no-store'});
     if (!response.ok) throw new Error('API unavailable');
-    state.deals = (await response.json()).deals || [];
+    const payload = await response.json();
+    state.deals = payload.deals || [];
+    const counts=payload.counts;
+    state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
     for (const [id, values, label] of [
       ['merchant-filter', [...new Set(state.deals.map(displayMerchant))].sort(), 'All stores'],
       ['category-filter', [...new Set(state.deals.map(d=>d.category).filter(Boolean))].sort(), 'All categories']
@@ -224,12 +253,12 @@ async function load(sort = sortEl.value) {
       const el = document.getElementById(id), previous = el.value;
       el.innerHTML = `<option value="">${label}</option>` + values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
       if (values.includes(previous)) el.value = previous;
-      if (id === 'category-filter') el.closest('label').hidden = values.length === 0;
+      if (id === 'category-filter') {el.closest('label').hidden = values.length === 0;el.closest('.browse-controls').hidden=values.length===0;}
     }
     render(localFilter(state.deals));
   } catch {
     dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
-    freshCount.textContent = '—'; hotCount.textContent = '—';
+    state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
   } finally {
     state.loading = false;
   }
@@ -301,11 +330,42 @@ clearEl.addEventListener('click', () => { searchEl.value=''; state.query=''; cle
 document.querySelector('#reset-filters').addEventListener('click', () => {
   searchEl.value=''; state.query=''; clearEl.classList.add('hidden');
   document.querySelector('#merchant-filter').value='';
+  state.merchants.clear();
+  document.querySelector('#store-search').value='';
   document.querySelector('#category-filter').value='';
   setFilter('latest');
   load('newest');
 });
-document.querySelectorAll('.browse-controls select:not(#sort)').forEach(el=>el.addEventListener('change',()=>render(localFilter(state.deals))));
+const storePicker=document.querySelector('#store-picker');
+function closeStorePicker() {storePicker.open=false;document.querySelector('#store-summary').focus();}
+function clearStoreFilters() {
+  state.merchants.clear();document.querySelector('#merchant-filter').value='';
+  render(localFilter(state.deals));
+}
+document.querySelector('#store-search').addEventListener('input',renderStoreFilters);
+document.querySelector('#store-options').addEventListener('change',e=>{
+  if (e.target.type!=='checkbox') return;
+  const name=e.target.value;
+  e.target.checked?state.merchants.add(name):state.merchants.delete(name);
+  render(localFilter(state.deals));
+  [...document.querySelectorAll('#store-options input')].find(input=>input.value===name)?.focus();
+});
+document.querySelector('#store-done').addEventListener('click',closeStorePicker);
+document.querySelector('#clear-stores').addEventListener('click',clearStoreFilters);
+document.querySelector('#selected-stores').addEventListener('click',e=>{
+  const remove=e.target.closest('[data-remove-store]');
+  if (remove) {state.merchants.delete(remove.dataset.removeStore);render(localFilter(state.deals));document.querySelector('#store-summary').focus();}
+  if (e.target.closest('#clear-selected-stores')) {clearStoreFilters();document.querySelector('#store-summary').focus();}
+});
+document.addEventListener('click',e=>{if(storePicker.open && !storePicker.contains(e.target)) storePicker.open=false;});
+storePicker.addEventListener('keydown',e=>{
+  if (e.key==='Escape') {e.preventDefault();closeStorePicker();}
+});
+// Keep the internal single-select adapter synchronized for integrations.
+document.querySelector('#merchant-filter').addEventListener('change',e=>{
+  state.merchants=new Set(e.target.value?[e.target.value]:[]);render(localFilter(state.deals));
+});
+document.querySelector('#category-filter').addEventListener('change',()=>render(localFilter(state.deals)));
 sortEl.addEventListener('change', () => load(sortEl.value));
 document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.filter)));
 
