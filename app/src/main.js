@@ -131,7 +131,7 @@ function card(d) {
   const saved = state.saved.has(String(d.id));
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
-      ${hasImage(d) ? `<img src="${esc(d.image_url)}" alt="${esc(title)}" loading="lazy">` : `<div class="fallback-copy"><svg width="42" height="42" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="8" y="8" width="32" height="32" rx="6"/><circle cx="18" cy="18" r="3"/><path d="m9 34 10-10 8 8 5-5 7 7"/></svg><small>Discover something good</small></div>`}
+      <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
       <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
@@ -155,13 +155,21 @@ function render(list) {
     return;
   }
   dealsEl.innerHTML = list.map(card).join('');
-  dealsEl.querySelectorAll('img').forEach(img => img.addEventListener('error', () => {
+  applyImageFallbacks(dealsEl);
+}
+
+function applyImageFallbacks(container) {
+  container.querySelectorAll('img').forEach(img => img.addEventListener('error', () => {
     img.parentElement.classList.add('image-fallback');
-    const fallback = document.createElement('div');
-    fallback.className='fallback-copy';
-    fallback.innerHTML='<span class="fallback-symbol" aria-hidden="true">◇</span><small>Discover something good</small>';
-    img.replaceWith(fallback);
-  }, {once:true}));
+    if (img.dataset.brandFallback === 'true') {
+      // Fail once to plain brand text if the local logo itself cannot load.
+      img.replaceWith(Object.assign(document.createElement('span'), {className:'fallback-brand-text', textContent:'SuperDeals'}));
+      return;
+    }
+    img.dataset.brandFallback='true';
+    img.alt='SuperDeals — product image unavailable';
+    img.src='/brand/superdeals-logo.png';
+  }));
 }
 
 function localFilter(list) {
@@ -240,7 +248,7 @@ function showDetail(id) {
   detail.innerHTML = `
     <div class="detail-sheet" role="dialog" aria-modal="true" aria-labelledby="detail-title" tabindex="-1">
       <button class="detail-close" aria-label="Close deal details" data-close>×</button>
-      ${hasImage(d)?`<div class="detail-image"><img src="${esc(d.image_url)}" alt="${esc(title)}"></div>`:''}
+      <div class="detail-image ${hasImage(d)?'':'image-fallback'}"><img src="${esc(hasImage(d)?d.image_url:'/brand/superdeals-logo.png')}" alt="${esc(hasImage(d)?title:'SuperDeals — product image unavailable')}" ${hasImage(d)?'':'data-brand-fallback="true"'}></div>
       <div class="eyebrow">${esc(merchant)} · ${esc(offerType(d))}</div>
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
@@ -250,6 +258,7 @@ function showDetail(id) {
       <p class="detail-note">Confirm the final price, variant, delivery charges and offer conditions at the retailer. Prices and availability may change.</p>
       <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">Shop ${esc(merchant)} ↗</a>
     </div>`;
+  applyImageFallbacks(detail);
   detail.classList.remove('hidden');
   detail.previousFocus = document.activeElement;
   detail.querySelector('[data-close]').focus();

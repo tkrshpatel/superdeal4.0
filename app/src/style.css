@@ -148,3 +148,10 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 /* Product names: one pixel smaller at each breakpoint. */
 .deal-card h3{font-size:14px}
 @media(max-width:720px){.deal-card h3{font-size:13px}}
+
+/* Product imagery and branded fallbacks use the same image slot. */
+.deal-card .image-fallback{background:#fff}
+.deal-card .image-wrap img[data-brand-fallback]{width:90%;height:100%;object-fit:contain}
+.detail-image.image-fallback{background:#fff}
+.detail-image img[data-brand-fallback]{width:85%;height:100%;object-fit:contain}
+.fallback-brand-text{color:#141414;font-size:24px;font-weight:800;letter-spacing:-1px}

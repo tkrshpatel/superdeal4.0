@@ -26,6 +26,7 @@ test('shopping flow filters, saves, opens details, restores focus and preserves 
   assert.equal(d.querySelectorAll('.deal-card').length,3);
   assert.deepEqual([...d.querySelector('#merchant-filter').options].map(o=>o.textContent), ['All stores','Amazon','Flipkart']);
   assert.equal(d.querySelectorAll('.image-fallback').length,2);
+  assert.equal(d.querySelectorAll('img[data-brand-fallback]').length,2);
   assert.equal(d.querySelectorAll('.offer-type').length,0);
   assert.equal(d.querySelectorAll('.deal-card script').length,0);
   assert.doesNotMatch(d.body.textContent,/commission|affiliate links/i);
@@ -61,7 +62,9 @@ test('shopping flow filters, saves, opens details, restores focus and preserves 
 test('image failures degrade gracefully and loading errors offer retry',async()=>{
   const dom=await setup(), d=dom.window.document;
   d.querySelector('.deal-card img').dispatchEvent(new dom.window.Event('error'));
-  assert.match(d.body.textContent,/Discover something good/);
+  assert.equal(d.querySelector('.deal-card img').getAttribute('src'),'/brand/superdeals-logo.png');
+  d.querySelector('.deal-card img').dispatchEvent(new dom.window.Event('error'));
+  assert.equal(d.querySelector('.fallback-brand-text').textContent,'SuperDeals');
   dom.window.close();
   const offline=await setup(true);
   assert.ok(offline.window.document.querySelector('[data-retry]'));
