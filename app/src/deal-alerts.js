@@ -1,0 +1,113 @@
+// The public client never receives subscriber lists or private stored records.
+export function mountDealAlerts({ api, product = () => '' }) {
+  const overlay = document.createElement('div');
+  overlay.className = 'alert-overlay';
+  overlay.hidden = true;
+  overlay.innerHTML = `
+    <section class="alert-sheet" role="dialog" aria-modal="true" aria-labelledby="alert-title">
+      <button type="button" class="alert-close" aria-label="Close notification form">×</button>
+      <div class="eyebrow">YOUR NEXT FIND</div>
+      <h2 id="alert-title">Get notified</h2>
+      <p class="alert-intro">Tell us what you’re looking for. We’ll email you when a matching deal appears.</p>
+      <form id="deal-alert-form">
+        <label>Product and model<input name="product" required minlength="3" maxlength="120" placeholder="e.g. iPhone 17 Pro" autocomplete="off"></label>
+        <label>Email address<input name="email" type="email" required maxlength="254" placeholder="you@example.com" autocomplete="email"></label>
+        <div class="alert-preferences">
+          <label>Emails per day<select name="daily_limit"><option value="1">Up to 1</option><option value="2">Up to 2</option><option value="3">Up to 3</option><option value="5">Up to 5</option></select></label>
+          <label>Notify me for<select name="days"><option value="1">1 day</option><option value="3">3 days</option><option value="7" selected>7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
+        </div>
+        <p class="alert-hint">Only new matching deals, within your daily limit. No match means no email. Limits reset at midnight India time.</p>
+        <label class="alert-consent"><input name="consent" type="checkbox" required><span>I agree to receive these product deal alerts. I can unsubscribe anytime. My email will be used to manage and send these alerts.</span></label>
+        <button class="alert-submit" type="submit">Create my alert</button>
+      </form>
+      <div class="alert-link-actions" hidden><button class="alert-submit" type="button" id="alert-link-action">Confirm</button></div>
+      <p class="alert-status" role="status" aria-live="polite"></p>
+    </section>`;
+  document.body.append(overlay);
+  const form = overlay.querySelector('form');
+  const status = overlay.querySelector('.alert-status');
+  const actions = overlay.querySelector('.alert-link-actions');
+  let previousFocus, linkAction;
+  function open(value = '') {
+    previousFocus = document.activeElement;
+    form.hidden = false;
+    actions.hidden = true;
+    status.textContent = '';
+    overlay.querySelector('#alert-title').textContent = 'Get notified';
+    overlay.querySelector('.alert-intro').hidden = false;
+    form.elements.product.value = value.slice(0, 120);
+    overlay.hidden = false;
+    document.body.classList.add('alert-modal-open');
+    form.elements.product.focus();
+  }
+  function close() {
+    overlay.hidden = true;
+    document.body.classList.remove('alert-modal-open');
+    previousFocus?.focus();
+  }
+  overlay.querySelector('.alert-close').addEventListener('click', close);
+  overlay.addEventListener('click', event => { if (event.target === overlay) close(); });
+  overlay.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.stopPropagation(); close(); }
+    if (event.key !== 'Tab') return;
+    const nodes = [...overlay.querySelectorAll('button, input, select')].filter(node => !node.disabled && !node.closest('[hidden]'));
+    const first = nodes[0], last = nodes.at(-1);
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  async function post(path, payload) {
+    const response = await fetch(api(path), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), cache: 'no-store' });
+    const result = await response.json();
+    if (!response.ok) throw new Error(response.status === 429 ? 'Too many requests. Please try again later.' : 'Could not save this request. Check your details or request a new link.');
+    return result;
+  }
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    if (!form.reportValidity()) return;
+    const button = form.querySelector('[type=submit]');
+    button.disabled = true;
+    status.textContent = 'Saving your request…';
+    try {
+      const result = await post('/api/v1/alerts', {
+        product: form.elements.product.value.trim(), email: form.elements.email.value.trim(),
+        daily_limit: Number(form.elements.daily_limit.value), days: Number(form.elements.days.value), consent: form.elements.consent.checked,
+      });
+      form.hidden = true;
+      status.textContent = result.email_mode === 'dry-run'
+        ? 'Request saved in preview mode. Email delivery is not enabled yet; no email has been sent. Confirmation and deal emails will be prepared locally for testing.'
+        : 'Request saved. Look for a confirmation email shortly and verify your address to activate alerts. Check your spam folder too.';
+      overlay.querySelector('.alert-close').focus();
+    } catch (error) { status.textContent = error.message || 'Connection failed. Please try again.'; }
+    finally { button.disabled = false; }
+  });
+  document.querySelector('#get-notified')?.addEventListener('click', () => open(product()));
+  document.addEventListener('click', event => {
+    const trigger = event.target.closest('[data-notify-product]');
+    if (trigger) open(trigger.dataset.notifyProduct);
+  });
+  // Fragments keep bearer tokens out of server access logs and HTTP referrers.
+  const params = new URLSearchParams(location.hash.slice(1));
+  const action = params.has('alert_confirm') ? 'confirm' : params.has('alert_stop') ? 'stop' : null;
+  if (action) {
+    const token = params.get(`alert_${action}`);
+    history.replaceState(null, '', location.pathname + location.search);
+    open();
+    form.hidden = true;
+    actions.hidden = false;
+    overlay.querySelector('.alert-intro').hidden = true;
+    overlay.querySelector('#alert-title').textContent = action === 'confirm' ? 'Confirm your deal alert' : 'Stop these deal alerts';
+    const button = overlay.querySelector('#alert-link-action');
+    button.textContent = action === 'confirm' ? 'Activate my alert' : 'Unsubscribe';
+    linkAction = async () => {
+      button.disabled = true;
+      try {
+        await post(`/api/v1/alerts/${action}`, {token});
+        status.textContent = action === 'confirm' ? 'Your alert is active. We’ll email you only when a new matching deal is available.' : 'You’re unsubscribed from this product alert.';
+        actions.hidden = true;
+      } catch (error) { status.textContent = error.message; button.disabled = false; }
+    };
+    button.addEventListener('click', linkAction);
+    button.focus();
+  }
+  return { open, close };
+}

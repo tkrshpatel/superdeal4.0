@@ -12,6 +12,7 @@ export default defineConfig({
       '/deals': apiTarget,
       '/go': apiTarget,
       '/health': apiTarget,
+      '/api/v1/alerts': apiTarget,
     },
   },
 });

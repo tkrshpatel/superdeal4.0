@@ -31,3 +31,6 @@ data/
 sessions/
 archive1/
 llm_*benchmark*.json
+
+# Contains recipient data and private confirmation/unsubscribe links.
+data/notification-previews/

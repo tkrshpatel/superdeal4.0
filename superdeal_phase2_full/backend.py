@@ -558,6 +558,16 @@ class Backend:
         counts = next(iter(self.db.fact_table.aggregate(pipeline)), {})
         return {'fresh_30m': counts.get('fresh_30m', 0), 'total_24h': counts.get('total_24h', 0)}
 
+    def notification_candidates(self, *, at=None):
+        """Stream only committed deals published within the last 24 hours."""
+        at = at or now()
+        pipeline = self._published_pipeline(limit=1)
+        # Remove pagination: alerts must not depend on the frontend's 100-card limit.
+        pipeline = [stage for stage in pipeline if '$limit' not in stage]
+        pipeline.insert(-1, {'$match': {'_publication.published_at': {'$gte': at - timedelta(hours=24), '$lte': at}}})
+        for doc in self.db.fact_table.aggregate(pipeline):
+            yield {'id': str(doc['_id']), **doc['product']}
+
     def public_metadata(self, deal_id):
         """Derived only from committed publication and observed click records.
 

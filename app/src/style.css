@@ -234,3 +234,18 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 
 /* Center the deal counters vertically beside the hero copy. */
 .hero-stats{align-self:center}
+
+/* Product alerts */
+.alert-invite{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 18px;padding:14px 18px;border:1px solid var(--line);border-radius:14px;background:#fff9;font-size:13px;color:var(--muted)}
+.alert-invite button,.notify-product{border:1px solid #c8d5b4;border-radius:999px;padding:10px 16px;background:#edf4df;color:#25351a;font:700 13px inherit;cursor:pointer;white-space:nowrap}
+.notify-product{margin:14px 0;white-space:normal}
+.alert-modal-open{overflow:hidden}.alert-overlay[hidden]{display:none}.alert-overlay{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;background:#141a14a6;backdrop-filter:blur(5px)}
+.alert-sheet{position:relative;width:min(100%,470px);max-height:90dvh;overflow:auto;padding:30px;border-radius:24px;background:#fafbf7;box-shadow:0 24px 80px #0003}
+.alert-close{position:absolute;right:16px;top:14px;width:36px;height:36px;border:1px solid var(--line);border-radius:50%;background:white;font-size:23px;cursor:pointer}
+.alert-sheet h2{font:700 28px 'Space Grotesk',sans-serif;letter-spacing:-1px;margin:12px 0}.alert-intro{font-size:14px;line-height:1.6;color:var(--muted)}
+.alert-sheet form>label,.alert-preferences label{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:600;margin:16px 0}
+.alert-sheet input:not([type=checkbox]),.alert-sheet select{width:100%;min-height:46px;padding:11px 12px;border:1px solid #d6dbcf;border-radius:10px;background:white;font:inherit;color:var(--ink)}
+.alert-preferences{display:grid;grid-template-columns:1fr 1fr;gap:14px}.alert-preferences label{margin-bottom:0}.alert-hint,.alert-status{font-size:12px;line-height:1.6;color:var(--muted)}
+.alert-sheet form>.alert-consent{flex-direction:row;align-items:flex-start;font-size:12px;font-weight:400;line-height:1.6}.alert-consent input{margin:4px 3px 0 0;flex-shrink:0}
+.alert-submit{display:block;width:100%;min-height:46px;border:0;border-radius:12px;background:#141414;color:#fff;font:700 14px inherit;cursor:pointer}.alert-submit:disabled{opacity:.55;cursor:wait}.alert-status{margin-bottom:0}.alert-sheet [hidden]{display:none}
+@media(max-width:480px){.alert-invite{font-size:12px;padding:12px;gap:8px}.alert-invite button{font-size:12px;padding:10px 12px}.alert-overlay{padding:12px}.alert-sheet{padding:24px 20px}.alert-preferences{gap:10px}}

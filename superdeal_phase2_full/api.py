@@ -1,4 +1,4 @@
-"""Opt-in read-only HTTP API. Does not start Telegram or background processing."""
+"""Public deals and opt-in alert API. No automatic workers or email sending."""
 from __future__ import annotations
 
 import hmac
@@ -47,6 +47,9 @@ def _legacy_deal(product, metadata=None):
 def make_handler(backend, *, admin_token=None):
     """Inject backend for isolated tests; no connection created on import."""
     token = admin_token if admin_token is not None else os.getenv('SUPERDEAL_ADMIN_TOKEN', '')
+
+    from notifications import Alerts, AlertBudget
+    alert_budget = AlertBudget()
 
     class Handler(BaseHTTPRequestHandler):
         def _send(self, code, payload):
@@ -161,7 +164,49 @@ def make_handler(backend, *, admin_token=None):
                 return self._send(500, {'error': 'internal_error'})
 
         def do_POST(self):
-            self._send(405, {'error': 'method_not_allowed'})
+            path = urlsplit(self.path).path
+            if path not in ('/api/v1/alerts', '/api/v1/alerts/confirm', '/api/v1/alerts/stop'):
+                return self._send(405, {'error': 'method_not_allowed'})
+            # Never log email addresses, request bodies or bearer links.
+            if not alert_budget.allow(self.client_address[0]):
+                return self._send(429, {'error': 'Too many requests. Please try again later.'})
+            origin = self.headers.get('Origin')
+            allowed = {value.strip().rstrip('/') for value in os.getenv('SUPERDEAL_ALERT_ORIGINS', '').split(',') if value.strip()}
+            if origin and origin not in allowed:
+                try:
+                    parsed = urlsplit(origin)
+                except ValueError:
+                    return self._send(403, {'error': 'Request origin is not allowed.'})
+                if parsed.scheme not in ('http', 'https') or parsed.netloc != self.headers.get('Host') or parsed.path or parsed.query or parsed.fragment:
+                    return self._send(403, {'error': 'Request origin is not allowed.'})
+            if self.headers.get('Transfer-Encoding') or len(self.headers.get_all('Content-Length', [])) != 1:
+                return self._send(400, {'error': 'A single Content-Length is required.'})
+            if self.headers.get_content_type() != 'application/json':
+                return self._send(415, {'error': 'Use application/json.'})
+            try:
+                length = int(self.headers.get('Content-Length', '0'))
+                if not 0 < length <= 4096:
+                    return self._send(413, {'error': 'Request is too large.'})
+                self.connection.settimeout(10)
+                raw = self.rfile.read(length)
+                if len(raw) != length:
+                    raise ValueError('Incomplete request.')
+                data = json.loads(raw)
+                service = Alerts(backend.db)
+                # Indexes are idempotent; no pipeline startup is required for signup.
+                service.setup()
+                if path == '/api/v1/alerts':
+                    service.subscribe(data)
+                    return self._send(202, {'status': 'accepted', 'email_mode': service.mailer.mode,
+                        'message': 'Request saved. Confirm your email to activate alerts.'})
+                if not isinstance(data, dict) or set(data) != {'token'}:
+                    raise ValueError('This link is invalid or expired.')
+                success = service.confirm(data['token']) if path.endswith('/confirm') else service.stop(data['token'])
+                return self._send(200 if success else 400, {'status': 'ok' if success else 'invalid_or_expired'})
+            except (ValueError, UnicodeError):
+                return self._send(400, {'error': 'Check the product, email, daily limit and duration, or request a new link.'})
+            except Exception:
+                return self._send(503, {'error': 'Alerts are temporarily unavailable. Please try again.'})
 
     return Handler
 
@@ -176,7 +221,7 @@ def main():
     backend = connect()
     backend.setup()
     server = ThreadingHTTPServer((host, port), make_handler(backend))
-    print(f'SuperDeal isolated read-only API: http://{host}:{port}')
+    print(f'SuperDeal API: http://{host}:{port}')
     server.serve_forever()
 
 
