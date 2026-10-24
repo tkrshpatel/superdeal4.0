@@ -5,6 +5,12 @@ export function priceFacts(d) {
   return {current, mrp, saving: mrp === null ? null : mrp-current, discount: mrp === null ? null : Math.round((mrp-current)*100/mrp)};
 }
 
+// Use the exact price ratio, not the rounded display percentage.
+export function isHotDeal(deal) {
+  const {current,mrp}=priceFacts(deal);
+  return current !== null && mrp !== null && current < mrp / 2;
+}
+
 // Normalize labels only. Affiliate URLs are never changed or used to guess a store.
 const RETAILERS = [
   ['Amazon', ['amazon', 'aamzon', 'amazon.in', 'amazon.com', 'aamzon.in', 'amz.cc', 'amzn.to']],

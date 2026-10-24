@@ -1,4 +1,4 @@
-import { priceFacts, displayRetailer } from './deal-facts.js';
+import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { SplashScreen } from '@capacitor/splash-screen';
@@ -22,7 +22,7 @@ function openDeal(id) {
 
 const FILTERS = [
   ['latest', 'Latest', 'newest'],
-  ['hot', '🔥 Hot', 'popular'],
+  ['hot', '🔥 Hot', 'newest'],
   ['drops', 'With savings', 'newest'],
   ['under499', '₹ Under 499', 'newest'],
   ['discount', '50%+ off', 'newest'],
@@ -155,7 +155,7 @@ function card(d) {
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
+      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>
@@ -172,7 +172,7 @@ function card(d) {
 function render(list) {
   freshCount.textContent = state.deals.length;
   document.querySelector('#result-count').textContent = `${list.length} offers in this feed`;
-  hotCount.textContent = state.deals.filter(d => Number(d.click_count||0) >= 5).length;
+  hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
     dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
     return;
@@ -204,7 +204,7 @@ function localFilter(list) {
   if (state.active === 'drops') result = result.filter(d => priceFacts(d).saving > 0);
   if (state.active === 'under499') result = result.filter(d => priceFacts(d).current !== null && priceFacts(d).current < 500);
   if (state.active === 'discount') result = result.filter(d => priceFacts(d).discount >= 50);
-  if (state.active === 'hot') result = result.filter(d => Number(d.click_count||0) >= 5);
+  if (state.active === 'hot') result = result.filter(isHotDeal);
   if (state.active === 'saved') result = result.filter(d => state.saved.has(String(d.id)));
   return result;
 }
@@ -240,17 +240,15 @@ function setFilter(id) {
   document.querySelectorAll('[data-filter]').forEach(b => {b.classList.toggle('active', b.dataset.filter === id);b.setAttribute('aria-pressed', String(b.dataset.filter === id));});
   const titles = {
     latest:['JUST IN','Latest deals'],
-    hot:['HIGH DEMAND','Hot right now'],
+    hot:['OVER 50% OFF','Hot deals'],
     drops:['COMPARE & SAVE','Offers with savings'],
     under499:['BUDGET FINDS','Under ₹499'],
     discount:['BIG SAVINGS','50%+ off'],
     saved:['YOUR LIST','Saved deals'],
   };
   [sectionKicker.textContent, sectionTitle.textContent] = titles[id] || titles.latest;
-  if (id === 'hot') sortEl.value = 'popular';
-  else if (id !== 'saved') sortEl.value = 'newest';
+  if (id !== 'saved') sortEl.value = 'newest';
   render(localFilter(state.deals));
-  if (id === 'hot') load('popular');
 }
 
 function save(id) {
@@ -275,7 +273,7 @@ function showDetail(id) {
       <div class="eyebrow">${esc(merchant)} · ${esc(offerType(d))}</div>
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
-      <div class="insights">${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
+      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT · Over 50% off</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
       ${termsMarkup(d)}
       ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
