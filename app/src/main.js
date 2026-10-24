@@ -33,6 +33,7 @@ const state = {
   saved: new Set(),
   query: '',
   loading: false,
+  counts: null,
 };
 try {
   const saved = JSON.parse(localStorage.getItem('superdeal-saved') || '[]');
@@ -56,7 +57,7 @@ app.innerHTML = `
       <p>Discover offers from your favourite stores. Compare the details, save your finds and shop directly with the retailer.</p>
     </div>
     <div class="hero-stats">
-      <div><strong id="fresh-count">—</strong><span>fresh deals</span></div>
+      <div><strong id="fresh-count" aria-label="Fresh deals in 30 minutes / deals in 24 hours">—/—</strong><span>Fresh / 24-hour deals</span></div>
       <div><strong id="hot-count">—</strong><span>hot right now</span></div>
     </div>
   </section>
@@ -170,7 +171,8 @@ function card(d) {
 }
 
 function render(list) {
-  freshCount.textContent = state.deals.length;
+  const counts=state.counts;
+  freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
   document.querySelector('#result-count').textContent = `${list.length} offers in this feed`;
   hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
@@ -216,7 +218,10 @@ async function load(sort = sortEl.value) {
     const params = new URLSearchParams({limit:'100', sort});
     const response = await fetch(API(`/deals?${params}`), {cache:'no-store'});
     if (!response.ok) throw new Error('API unavailable');
-    state.deals = (await response.json()).deals || [];
+    const payload = await response.json();
+    state.deals = payload.deals || [];
+    const counts=payload.counts;
+    state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
     for (const [id, values, label] of [
       ['merchant-filter', [...new Set(state.deals.map(displayMerchant))].sort(), 'All stores'],
       ['category-filter', [...new Set(state.deals.map(d=>d.category).filter(Boolean))].sort(), 'All categories']
@@ -229,7 +234,7 @@ async function load(sort = sortEl.value) {
     render(localFilter(state.deals));
   } catch {
     dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
-    freshCount.textContent = '—'; hotCount.textContent = '—';
+    state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
   } finally {
     state.loading = false;
   }

@@ -545,6 +545,19 @@ class Backend:
         docs = list(self.db.fact_table.aggregate(pipeline))
         return {'items': [{'id': str(d['_id']), **d['product'], 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit}
 
+    def deal_window_counts(self, *, at=None):
+        """Count all committed deal facts, independently of feed pagination/filters."""
+        at = at or now()
+        pipeline = self._published_pipeline()[:3]  # publication join + gate only
+        pipeline += [
+            {'$match': {'_publication.published_at': {'$gte': at - timedelta(hours=24), '$lte': at}}},
+            {'$group': {'_id': None, 'total_24h': {'$sum': 1},
+                        'fresh_30m': {'$sum': {'$cond': [
+                            {'$gte': ['$_publication.published_at', at - timedelta(minutes=30)]}, 1, 0]}}}},
+        ]
+        counts = next(iter(self.db.fact_table.aggregate(pipeline)), {})
+        return {'fresh_30m': counts.get('fresh_30m', 0), 'total_24h': counts.get('total_24h', 0)}
+
     def public_metadata(self, deal_id):
         """Derived only from committed publication and observed click records.
 

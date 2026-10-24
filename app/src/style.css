@@ -164,3 +164,6 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .deal-terms ol,.deal-terms ul{padding-left:20px}.deal-terms li{margin:6px 0}.deal-terms details{font-size:12px;color:#616b56;overflow-wrap:anywhere}.deal-terms summary{cursor:pointer}.terms-note{font-size:12px;color:#747d6a;margin:10px 0 0}
 
 .deal-card .card-top{max-width:calc(100% - 20px);flex-wrap:wrap}.deal-card .hot-badge{background:#fff0e5;color:#a74b17;font-size:9px;padding:5px 7px}
+
+.hero-stats{grid-template-columns:minmax(180px,1.5fr) minmax(110px,1fr)}#fresh-count{font-size:clamp(25px,3vw,32px);white-space:nowrap;letter-spacing:-1px}.hero-stats span{line-height:1.4}
+@media(max-width:720px){.hero-stats{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}#fresh-count{font-size:27px}}

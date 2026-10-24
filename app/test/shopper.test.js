@@ -146,3 +146,16 @@ test('hot badge, count and filter use discounts above 50 percent',async()=>{
   assert.match(d.querySelector('.deal-card').textContent,/Hot product/);
   dom.window.close();
 });
+
+
+test('fresh/24-hour counter uses server totals, not the loaded card count',async()=>{
+  const dom=await setup(), w=dom.window, d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:offers,counts:{fresh_30m:20,total_24h:266}})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelector('#fresh-count').textContent,'20/266');
+  assert.equal(d.querySelector('#fresh-count').nextElementSibling.textContent,'Fresh / 24-hour deals');
+  d.querySelector('[data-filter=saved]').click();
+  assert.equal(d.querySelector('#fresh-count').textContent,'20/266');
+  dom.window.close();
+});
