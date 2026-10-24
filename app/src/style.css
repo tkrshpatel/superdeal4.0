@@ -144,3 +144,7 @@ footer{max-width:1180px;margin:45px auto 0;padding:20px;border-top:1px solid var
 .deal-card .card-content{padding-top:8px;row-gap:5px}
 @media(max-width:720px){.deal-card .image-wrap{height:170px;flex-basis:170px;padding:8px 16px}}
 @media(max-width:380px){.deal-card .image-wrap{height:175px;flex-basis:175px}}
+
+/* Product names: one pixel smaller at each breakpoint. */
+.deal-card h3{font-size:14px}
+@media(max-width:720px){.deal-card h3{font-size:13px}}
