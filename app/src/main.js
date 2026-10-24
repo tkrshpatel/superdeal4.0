@@ -135,12 +135,12 @@ function card(d) {
       <div class="card-top">${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
-    <div class="card-content"><div class="merchant">${esc(merchant)}</div>
+    <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>
       <h3><button class="title-button" data-open="${esc(d.id)}">${esc(title)}</button></h3>
       <div class="card-middle">
       ${priceMarkup(d)}
       <div class="offer-conditions">${d.has_coupon?'<span>Coupon required</span>':''}${d.has_card_offer?'<span>Bank offer · check eligibility</span>':''}</div>
-      <div class="demand-row"><span>${Number(d.click_count)>=5?`${Number(d.click_count)} clicks`:''}</span><span>${d.last_seen_at?`Posted ${esc(age(d.last_seen_at))}`:'Date unavailable'}</span></div>
+      <div class="demand-row"><span>${Number(d.click_count)>=5?`${Number(d.click_count)} clicks`:''}</span></div>
       </div>
       <div class="card-actions"><button class="get-deal" data-go="${esc(d.id)}">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</button><button class="share" data-share="${esc(d.id)}" aria-label="Share ${esc(title)}">${shareIcon}</button></div>
     </div></article>`;
