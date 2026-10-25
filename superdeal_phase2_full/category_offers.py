@@ -30,12 +30,21 @@ def category_context(text):
             continue
         label=line[:matches[0].start()].strip(' \t-*•')
         label=re.sub(r'[:;]\s*[\[(]*\s*$','',label).strip()
-        if not re.fullmatch(r'[^\W\d_][^\W\d_ \t]*(?:[\w\s&’\x27()/\-]*[^\W\d_])?',label,re.UNICODE) or len(label)>80 or re.search(r'\d|@|₹',label):
+        if label and not re.fullmatch(r'[^\W\d_][^\W\d_ \t]*(?:[\w\s&’\x27()/\-]*[^\W\d_])?',label,re.UNICODE) or len(label)>80 or re.search(r'\d|@|₹',label):
             continue
         link=next(iter(links(line)))
         if link in rows:
             return {}
-        rows[link]=prefix+' '+label
+        if not label:
+            name=scope
+        elif label.casefold() in {'men','women','kids','children'}:
+            # Audience rows qualify the collection, not replace its name.
+            qualifier={'men':"Men's",'women':"Women's",'kids':"Kids'",'children':"Children's"}[label.casefold()]
+            base,noun=(scope.rsplit(' ',1) if ' ' in scope else ('',scope))
+            name=' '.join(p for p in (base,qualifier,noun) if p)
+        else:
+            name=prefix+' '+label
+        rows[link]=name
     if len(rows)<2 or set(rows)!=links(text):
         return {}
     discount=PERCENT.search(header)

@@ -110,8 +110,6 @@ class Backend:
         self.fallback_log_path = pathlib.Path(os.getenv('SUPERDEAL_FALLBACK_LOG', 'data/superdeal_fallback_errors.jsonl'))
         self._fallback_lock = threading.Lock()
         self._offer_fact_cache = OrderedDict()
-        self._deal_terms_cache = OrderedDict()
-        self._category_context_cache = OrderedDict()
         self._offer_fact_lock = threading.Lock()
 
     def setup(self):
@@ -457,90 +455,19 @@ class Backend:
 
 
     def _public_deal_terms(self, fact):
-        """Recover shared source terms for old cards without changing prices."""
-        raw_id,publication=fact.get('raw_id'),fact.get('publication_id')
-        if raw_id is None or not publication:
-            return fact.get('deal_terms')
-        key=(str(raw_id),str(publication))
-        with self._offer_fact_lock:
-            cached=self._deal_terms_cache.get(key)
-        if cached is None:
-            converted=self.db.ek_raw.find_one({'raw_id':raw_id},{'response_text':1})
-            if not converted or not converted.get('response_text'):
-                return fact.get('deal_terms')
-            siblings=list(self.db.fact_table.find({'raw_id':raw_id,'publication_id':publication},{'product':1}).sort('offer_index',1))
-            from deal_terms import extract_deal_terms
-            terms=extract_deal_terms(converted['response_text'],[doc['product'] for doc in siblings])
-            cached={str(doc['_id']):term for doc,term in zip(siblings,terms)}
-            with self._offer_fact_lock:
-                self._deal_terms_cache[key]=cached
-                while len(self._deal_terms_cache)>128:
-                    self._deal_terms_cache.popitem(last=False)
-        return cached.get(str(fact.get('_id')),fact.get('deal_terms'))
-
-    def _category_display(self, fact, fields):
-        """Recover names and shared discounts for saved category cards."""
-        raw_id=fact.get('raw_id')
-        if raw_id is None:
-            return fields
-        key=str(raw_id)
-        with self._offer_fact_lock:
-            context=self._category_context_cache.get(key)
-        if context is None:
-            converted=self.db.ek_raw.find_one({'raw_id':raw_id},{'response_text':1})
-            from category_offers import category_context
-            context=category_context((converted or {}).get('response_text',''))
-            with self._offer_fact_lock:
-                self._category_context_cache[key]=context
-                while len(self._category_context_cache)>128:
-                    self._category_context_cache.popitem(last=False)
-        attached=(fact.get('product') or {}).get('affiliate_urls') or []
-        if len(attached)!=1 or attached[0] not in context.get('names',{}):
-            return fields
-        result={**fields,'product_name':context['names'][attached[0]],'brand':context['brand'] or (fact.get('product') or {}).get('brand')}
-        if context.get('discount') is not None and (fields.get('offer_facts') or {}).get('discount_pct') is None:
-            facts={**fields.get('offer_facts',{}),'version':11,
-                   'discount_pct':context['discount'],'discount_kind':context['discount_kind']}
-            result.update(offer_facts=facts,discount_percentage=context['discount'])
-        return result
+        """Historical cards retain their published terms."""
+        return fact.get('deal_terms')
 
     def _offer_fields(self, fact):
-        """Read old source evidence without rewriting published records."""
-        from offer_evidence import resolve_offers, public_facts
-        facts = fact.get('offer_facts')
-        if not isinstance(facts, dict) or facts.get('version') != 11:
-            raw_id, publication = fact.get('raw_id'), fact.get('publication_id')
-            if raw_id is None or not publication:
-                return {}
-            key = (str(raw_id), str(publication))
-            with self._offer_fact_lock:
-                cached = self._offer_fact_cache.get(key)
-                if cached is not None:
-                    self._offer_fact_cache.move_to_end(key)
-            if cached is None:
-                converted = self.db.ek_raw.find_one({'raw_id': raw_id}, {'response_text': 1})
-                if not converted or not converted.get('response_text'):
-                    return {}
-                siblings = list(self.db.fact_table.find({'raw_id': raw_id, 'publication_id': publication},
-                    {'product': 1}).sort('offer_index', 1))
-                products = [doc['product'] for doc in siblings]
-                # Evidence previously stored by the browser is eligible only by exact URL.
-                from pre_llm_research import load_research
-                try:
-                    research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
-                except ValueError:
-                    research = None  # Optional old browser evidence is missing or incomplete.
-                resolved = resolve_offers(converted['response_text'], products, research)
-                cached = {str(doc['_id']): item for doc,item in zip(siblings,resolved)}
-                with self._offer_fact_lock:
-                    self._offer_fact_cache[key] = cached
-                    while len(self._offer_fact_cache)>128:
-                        self._offer_fact_cache.popitem(last=False)
-            facts = cached.get(str(fact['_id']))
-        if not facts:
+        """Serve stored publication facts; never re-enrich history on reads."""
+        from offer_evidence import public_facts
+        facts=fact.get('offer_facts')
+        if not isinstance(facts,dict):
             return {}
-        return self._category_display(fact, {'offer_facts': public_facts(facts), 'deal_price': facts['current_price'],
-                'original_price': facts['mrp'], 'discount_percentage': facts['discount_pct']})
+        return {'offer_facts':public_facts(facts),
+                'deal_price':facts.get('current_price'),
+                'original_price':facts.get('mrp'),
+                'discount_percentage':facts.get('discount_pct')}
 
     def published_offers(self, limit=100):
         """Publication gate for web/mobile: never query fact_table directly."""

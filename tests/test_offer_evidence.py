@@ -88,19 +88,16 @@ def test_private_provenance_and_conflicts_never_reach_public_json():
     assert set(payload['offer_facts'])<=set(public_facts(f))
     assert 'earnkaro' not in str(payload).lower() and '@channel' not in str(payload)
 
-def test_existing_fact_recovers_discount_from_saved_converted_message_without_writes():
+def test_existing_fact_is_not_reenriched_from_saved_messages():
     db=mongomock.MongoClient().db
-    raw,oid=ObjectId(),ObjectId()
-    p=product()
+    raw=ObjectId()
     db.ek_raw.insert_one({'raw_id':raw,'response_text':'60% off\n'+LINK})
-    doc={'_id':oid,'raw_id':raw,'publication_id':'pub','offer_index':0,'product':p}
+    doc={'_id':ObjectId(),'raw_id':raw,'publication_id':'old','product':product()}
     db.fact_table.insert_one(doc)
     before=deepcopy(db.fact_table.find_one({}))
-    fields=Backend(db)._offer_fields(doc)
-    assert fields['discount_percentage']==60
-    assert fields['deal_price'] is None and fields['original_price'] is None
-    assert fields['offer_facts']['discount_kind']=='exact'
+    assert Backend(db)._offer_fields(doc)=={}
     assert db.fact_table.find_one({})==before
+
 
 @pytest.mark.parametrize('pct,kind,expected',[(75,'exact',False),(75.1,'exact',True),(80,'up_to',False),(100,'exact',True)])
 def test_hot_uses_verified_exact_discount(pct,kind,expected):
@@ -156,17 +153,10 @@ def test_starting_price_never_becomes_exact_price():
     f=resolve('Starting at ₹419')
     assert f['starting_price']==419 and f['current_price'] is None
 
-def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
+def test_version_one_saved_facts_keep_their_original_values():
     db=mongomock.MongoClient().db
-    raw,oid=ObjectId(),ObjectId()
-    db.ek_raw.insert_one({'raw_id':raw,'response_text':'Amazon : Up to 52% Off on Eha Pots & Plants Starting @419 + Apply Coupon\n'+LINK})
-    doc={'_id':oid,'raw_id':raw,'publication_id':'pub','offer_index':0,'product':product(),
-         'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
-    db.fact_table.insert_one(doc)
-    fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==11
-    assert fields['offer_facts']['discount_pct']==52
-    assert db.fact_table.find_one({})['offer_facts']['version']==1
+    doc={'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None}}
+    assert Backend(db)._offer_fields(doc)['offer_facts']==doc['offer_facts']
 
 
 @pytest.mark.parametrize('text', [
@@ -185,16 +175,10 @@ def test_browser_price_is_used_when_source_has_no_selling_price(text):
     assert f['current_price']==500
     assert f['_sources']['current_price']=='browser'
 
-def test_version_two_price_is_recovered_from_saved_message():
+def test_version_two_saved_price_is_not_replaced_on_read():
     db=mongomock.MongoClient().db
-    raw=ObjectId()
-    db.ek_raw.insert_one({'raw_id':raw,'response_text':'Headphones @252\n'+LINK})
-    doc={'raw_id':raw,'publication_id':'price-recovery','offer_index':0,'product':product(),
-         'offer_facts':{'version':2,'current_price':500}}
-    db.fact_table.insert_one(doc)
-    fields=Backend(db)._offer_fields(doc)
-    assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==11
+    doc={'offer_facts':{'version':2,'current_price':500,'mrp':None,'discount_pct':None}}
+    assert Backend(db)._offer_fields(doc)['deal_price']==500
 
 
 def test_orient_effective_price_with_three_colour_links():

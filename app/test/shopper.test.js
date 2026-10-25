@@ -310,3 +310,26 @@ test('effective source price uses normal price typography and a separate qualifi
   assert.match(d.querySelector('#detail').textContent,/Effective price; apply/);
   dom.window.close();
 });
+
+
+test('PUMA collection and audience cards show inherited names and flat discount',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  const names=['PUMA Shoes',"PUMA Men's Shoes","PUMA Women's Shoes"];
+  w.fetch=async()=>({ok:true,json:async()=>({deals:names.map((product_name,i)=>({
+    id:'puma-'+i,product_name,merchant:'Amazon',last_seen_at:new Date().toISOString(),
+    offer_facts:{version:11,current_price:null,mrp:null,discount_pct:80,discount_kind:'exact',conditional_offers:[]}
+  }))})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(r=>setTimeout(r,0));
+  const cards=[...d.querySelectorAll('.deal-card')];
+  assert.equal(cards.length,3);
+  cards.forEach((card,i)=>{
+    assert.equal(card.querySelector('.title-button').textContent,names[i]);
+    assert.equal(card.querySelector('.discount-badge').textContent,'80% off');
+    assert.match(card.textContent,/HOT/);
+    assert.equal(card.querySelector('.get-deal').dataset.go,'puma-'+i);
+    assert.ok(card.querySelector('.unknown-price'));
+    assert.doesNotMatch(card.textContent,/earnkaro|telegram/i);
+  });
+  dom.window.close();
+});
