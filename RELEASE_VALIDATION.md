@@ -45,3 +45,31 @@ The chat execution environment is offline. This review used GitHub source and wo
 - Backend collection uncovered a pre-existing API mismatch: test_image_candidates.py imports rank_candidates, but image_enrichment.py does not define it. The suite remains failing; this is not skipped or marked as passing.
 - Follow-up validation uses --continue-on-collection-errors so other backend tests execute while preserving the collection error and failing exit status.
 - Search/filtering currently runs over the 100 loaded cards, not the full database. Counts cover the full time window, so an absent search result does not establish that no matching deal exists.
+
+## Completed expanded run
+
+On validation commit `5c6f2c00ce301162232138edb3e543c5733dcb7a`:
+
+| Check | Result |
+| --- | --- |
+| Application tests, Python 3.11 | 174 passed |
+| Application tests, Python 3.12 | 174 passed |
+| Frontend tests | 26 passed |
+| Production frontend build | Passed |
+| MongoDB/phase-2 suite, Python 3.11 | 101 passed; 9 failed; 1 collection error |
+| MongoDB/phase-2 suite, Python 3.12 | 101 passed; 9 failed; 1 collection error |
+| Android packaging after conditional project generation | Passed on initial validation revision; subsequent run also exercises the unchanged packaging fix |
+
+The nine failures report `Invalid link-ID response schema`: their injected model responses still supply legacy affiliate_urls/unassigned_urls instead of the current opaque link-ID contract. Fix those fixtures and rerun assertions; do not weaken the production validator to make these tests pass. The image-ranking collection failure must also be reconciled with the intended implementation.
+
+Evidence: [expanded Python run](https://github.com/tkrshpatel/superdeal4.0/actions/runs/40179152598), [frontend run](https://github.com/tkrshpatel/superdeal4.0/actions/runs/40179152486), [successful Android run](https://github.com/tkrshpatel/superdeal4.0/actions/runs/40179036937).
+
+Status: **not cleared for production**. Main remains unchanged by this validation branch. Gmail delivery, real Telegram-to-browser acceptance, safe public hosting, security integration and recovery/load testing remain unverified.
+
+## Inputs needed from the owner
+
+1. A Windows PC test session with MongoDB, API, Telegram pipeline and alert worker available; confirm whether the alert-origin fix now saves successfully and new published deals appear through the API.
+2. Domain/public HTTPS staging URL when available. Keep MongoDB/Ollama/admin endpoints private.
+3. Configure the sender superdeals.helpdesk@gmail.com and its SMTP credentials locally in .env, with owned recipient inboxes for delivery/confirmation/unsubscribe tests. Never send passwords or the full .env in chat.
+4. PC CPU/RAM, internet upload speed and an estimate of concurrent visitors for the first release.
+5. Final footer disclaimer/privacy/contact wording, as previously planned.
