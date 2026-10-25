@@ -5,7 +5,7 @@ import math
 import re
 from deal_terms import links, URL
 
-NUMBER = r'((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?![\w,.])'
+NUMBER = r'((?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d{1,2})?)(?![\w,.])'
 CURRENCY = r'(?:₹\s*|(?:rs\.?|inr)\s*)'
 MRP = re.compile(r'\b(?:mrp|m\.r\.p\.?|original\s*price|list\s*price)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)

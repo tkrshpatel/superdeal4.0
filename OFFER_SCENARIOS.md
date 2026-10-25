@@ -16,9 +16,9 @@ Branch: phase-offer-evidence. Based on phase-24-hour-feed. Main, API host/port, 
 | Conflicting source/browser facts | Source wins; do not infer an MRP from price + percentage |
 | Internally inconsistent source percentage and source price pair | Use the clear numerical source price pair and record a private conflict |
 | Ambiguous prices or product/link association | Omit ambiguous fields; do not transfer another product's offer |
-| Missing reliable values | Retailer-price prompt; no invented savings or discount |
+| Explicit monetary savings without MRP | Preserve the stated savings amount; do not treat it as a selling price or invent an MRP |\n| Missing reliable values | Retailer-price prompt; no invented savings or discount |
 
-The matcher recognizes explicit INR price/MRP labels, currency amounts, flat/exact/Up to discount phrases and conditional discount contexts. Ambiguous or unrecognized formats are intentionally omitted. It is not an unrestricted natural-language interpreter. Known foreign currency lines and effective/after-benefit prices are not treated as unconditional INR prices.
+The matcher recognizes explicit INR price/MRP labels, Indian and international comma-grouped INR amounts, flat/exact/Up to discount phrases and conditional discount contexts. Ambiguous or unrecognized formats are intentionally omitted. It is not an unrestricted natural-language interpreter. Known foreign currency lines and effective/after-benefit prices are not treated as unconditional INR prices.
 
 Strict HOT uses the unrounded verified discount: 50% is not HOT; 50.1% is. Coupon/bank benefits and Up to percentages alone never qualify. The 50%+ filter also excludes upper-bound-only offers.
 

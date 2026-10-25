@@ -133,3 +133,7 @@ def test_conditional_rupee_benefit_stays_separate():
     f=resolve('HDFC card ₹500 off')
     assert f['current_price'] is None and f['stated_savings'] is None
     assert f['conditional_offers'][0]['label']=='Bank offer: ₹500'
+
+def test_indian_currency_grouping_is_preserved():
+    f=resolve('Price ₹1,29,999; MRP ₹1,49,999')
+    assert f['current_price']==129999 and f['mrp']==149999
