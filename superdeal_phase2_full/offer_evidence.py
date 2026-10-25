@@ -150,7 +150,8 @@ def extract(text):
                 if item not in conditional:
                     conditional.append(item)
             if not percent:
-                for amount in RUPEES.finditer(line):
+                amounts=list(RUPEES.finditer(line))+list(re.finditer(r'(?<![\w.,])'+NUMBER+r'(?=\s+off\b)',line,re.I))
+                for amount in amounts:
                     value = number(float(amount[1].replace(',', '')))
                     prefix, tail = line[:amount.start()], line[amount.end():]
                     if value and (re.match(r'\s*(?:off|cashback)\b', tail, re.I)
@@ -172,6 +173,11 @@ def extract(text):
         # Keep original-price amounts out of selling-price extraction.
         clean = '' if foreign else STARTING.sub('', MRP.sub('', line))
         found = list(PRICE.finditer(clean)) + list(AT_PRICE.finditer(clean))
+        # A whole line containing only an amount is an explicit price quote.
+        standalone=re.fullmatch(r'\s*'+NUMBER+r'\s*',clean)
+        if standalone:
+            prices.append(float(standalone[1].replace(',','')))
+
         if not found and not re.search(r'save|saving|discount|\boff\b', clean, re.I):
             found = list(RUPEES.finditer(clean))
         for amount in RUPEES.finditer(clean):
@@ -239,7 +245,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':8,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':9,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output

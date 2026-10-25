@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==8
+    assert fields['offer_facts']['version']==9
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==8
+    assert fields['offer_facts']['version']==9
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -286,3 +286,24 @@ def test_starting_price_wording_variants(phrase):
     assert f['starting_price']==262
     assert f['current_price'] is None
     assert f['discount_pct']==86 and f['discount_kind']=='up_to'
+
+
+def test_standalone_price_and_separate_bare_card_saving():
+    f=resolve('86700\n\n11000 off Using Card')
+    assert f['current_price']==86700
+    assert f['mrp'] is None and f['discount_pct'] is None
+    assert f['conditional_offers']==[{'label':'Bank offer: ₹11000','kind':'conditional_amount'}]
+
+@pytest.mark.parametrize('text,value',[('86,700',86700),('86700',86700),('86700.50',86700.5)])
+def test_standalone_amount_price(text,value):
+    assert resolve(text)['current_price']==value
+
+def test_card_benefit_alone_is_not_a_price():
+    f=resolve('11000 off Using Card')
+    assert f['current_price'] is None
+    assert f['conditional_offers'][0]['label']=='Bank offer: ₹11000'
+
+def test_conflicting_standalone_prices_remain_ambiguous():
+    f=resolve('86700\n85700')
+    assert f['current_price'] is None
+    assert 'AMBIGUOUS_SOURCE_PRICE' in f['_conflicts']
