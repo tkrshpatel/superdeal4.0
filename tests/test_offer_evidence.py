@@ -114,3 +114,7 @@ def test_advertised_up_to_remains_separate_when_exact_price_pair_is_available():
     f=resolve('Price ₹500\nMRP ₹1000\nUp to 80% off')
     assert f['discount_pct']==50 and f['discount_kind']=='calculated'
     assert f['advertised_discount']=={'value':80,'kind':'up_to'}
+
+@pytest.mark.parametrize('text',['Effective price ₹499','Price ₹499 after cashback','USD price 499','Price $499','Buy 1 get 1 free'])
+def test_conditional_or_foreign_prices_are_not_base_inr_values(text):
+    assert resolve(text)['current_price'] is None
