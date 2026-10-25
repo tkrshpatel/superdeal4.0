@@ -1,5 +1,5 @@
 const validPrice = v => typeof v !== 'boolean' && v != null && v !== '' && Number.isFinite(Number(v)) && Number(v) > 0;
-const evidence = d => [1,2,3,4,5,6,7,8,9,10].includes(d.offer_facts?.version) ? d.offer_facts : null;
+const evidence = d => [1,2,3,4,5,6,7,8,9,10,11].includes(d.offer_facts?.version) ? d.offer_facts : null;
 export function priceFacts(d) {
   const f=evidence(d);
   const current = f ? (validPrice(f.current_price)?Number(f.current_price):null) : validPrice(d.current_price) ? Number(d.current_price) : validPrice(d.verified_price) ? Number(d.verified_price) : null;

@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==10
+    assert fields['offer_facts']['version']==11
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==10
+    assert fields['offer_facts']['version']==11
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -234,9 +234,9 @@ def test_price_url_rows_split_model_group_and_keep_each_price():
 def test_incomplete_price_rows_do_not_split_or_borrow_price():
     from offer_evidence import split_priced_products, priced_link_rows
     text='4099 : '+LINK+'\nUnknown price: https://affiliate.example/b'
-    assert priced_link_rows(text)=={}
+    assert priced_link_rows(text)=={LINK:4099}
     p={**product(),'affiliate_urls':[LINK,'https://affiliate.example/b']}
-    assert split_priced_products(text,[p])==[p]
+    assert len(split_priced_products(text,[p]))==2
 
 
 def test_led_pack_rows_have_separate_prices_and_source_option_names():
@@ -322,3 +322,25 @@ def test_card_saving_is_not_mistaken_for_conditional_selling_price():
     f=resolve('11000 off Using Card')
     assert f['effective_price'] is None
     assert f['current_price'] is None
+
+
+@pytest.mark.parametrize('separator',[' : ',' ; ','  ','\n'])
+@pytest.mark.parametrize('quote',['@799','Rs.799','₹799','799'])
+def test_generic_quotes_bind_to_their_following_link(quote,separator):
+    from offer_evidence import priced_link_rows
+    text=quote+separator+LINK
+    assert priced_link_rows(text)=={LINK:799}
+
+def test_elaris_four_product_prices_including_semicolon():
+    from offer_evidence import split_priced_products
+    urls=['https://amzn-to.co/1ALqDE','https://amzn-to.co/0GUaTa','https://amzn-to.co/YDKDP1','https://amzn-to.co/gZu3zP']
+    text='Amazon: Upto 65% OFF on Elaris Home Decor + APPLY COUPON\n\nOwl Figurine Set (White & Gold) @799 : '+urls[0]+'\nBirds Sculpture (Black & White) @799 : '+urls[1]+'\nRibbed Ceramic Planter (White) @279 : '+urls[2]+'\nRibbed Ceramic Planter (Green) @279 ; '+urls[3]+'\n\n(Elegant Design • Modern Decor • Premium Finish)'
+    products=split_priced_products(text,[{**product(),'affiliate_urls':urls}])
+    assert len(products)==4
+    assert [f['current_price'] for f in resolve_offers(text,products)]==[799,799,279,279]
+    assert all(f['discount_pct']==65 and f['discount_kind']=='up_to' for f in resolve_offers(text,products))
+
+@pytest.mark.parametrize('quote',['₹500 off Using Card','Rs.500 cashback','Save ₹500','Starting @799','MRP ₹1000'])
+def test_generic_rows_do_not_promote_benefits_or_reference_prices(quote):
+    from offer_evidence import priced_link_rows
+    assert priced_link_rows(quote+' : '+LINK)=={}

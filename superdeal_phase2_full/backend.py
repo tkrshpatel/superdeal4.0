@@ -456,7 +456,7 @@ class Backend:
         """Read old source evidence without rewriting published records."""
         from offer_evidence import resolve_offers, public_facts
         facts = fact.get('offer_facts')
-        if not isinstance(facts, dict) or facts.get('version') != 10:
+        if not isinstance(facts, dict) or facts.get('version') != 11:
             raw_id, publication = fact.get('raw_id'), fact.get('publication_id')
             if raw_id is None or not publication:
                 return {}

@@ -29,36 +29,46 @@ def unique(values):
 
 
 def priced_link_rows(text):
-    """Only accept a complete, unambiguous list of price: URL rows."""
+    """Bind explicit price quotes to the immediately following URL.
+
+    Accept punctuation and whitespace separators, not only colon/newline rows.
+    Missing prices on other links must not discard an unambiguous matched price.
+    """
     rows={}
     previous=0
-    for found in URL.finditer(text):
-        segment=text[previous:found.start()]
-        match=re.search(r'(?:@\s*|\bat\s+)(?:'+CURRENCY+r')?'+NUMBER+r'[\s.:]*[\[(]*\s*$',segment,re.I)
-        if match:
+    for link in URL.finditer(text):
+        segment=text[previous:link.start()]
+        previous=link.end()
+        # Earlier paragraphs are shared prose, not this link's local price.
+        local=next((line.strip() for line in reversed(segment.splitlines()) if line.strip()),'')
+        suffix=r'[\s.:;,!*()\[\]\-–—]*'
+        explicit=list(AT_PRICE.finditer(local))+list(PRICE.finditer(local))+list(RUPEES.finditer(local))
+        values=[]
+        for match in explicit:
+            tail=local[match.end():]
+            if not re.fullmatch(suffix,tail):
+                continue
+            # A starting price or savings amount is not an exact selling price.
+            if any(m.start()<=match.start()<m.end() for m in MRP.finditer(local)):
+                continue
+            before=local[:match.start()]
+            if re.search(r'(?:start(?:ing|s)?(?:\s+(?:from|at))?|from|save|saving|cashback|mrp|original\s*price)\s*[:=-]?\s*$',before,re.I):
+                continue
+            if CONDITIONAL.search(local) or re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b',local,re.I):
+                continue
             value=number(float(match[1].replace(',','')))
-            if value and found.group() not in rows:
-                rows[found.group()]=value
-        previous=found.end()
-    if len(rows)>1 and set(rows)==links(text):
-        return rows
-    rows={}
-    for line in text.splitlines():
-        found=list(URL.finditer(line))
-        if len(found)!=1:
-            continue
-        match=re.fullmatch(r'\s*(?:[-•]\s*)?(?:'+CURRENCY+r')?'+NUMBER+r'\s*:\s*[\[(]*\s*',line[:found[0].start()],re.I)
-        if not match:
-            # Descriptive option text may precede an explicit @ selling price.
-            match=re.search(r'@\s*(?:'+CURRENCY+r')?'+NUMBER+r'\s*:\s*[\[(]*\s*$',line[:found[0].start()],re.I)
-        if not match:
-            continue
-        value=number(float(match[1].replace(',','')))
-        link=found[0].group()
-        if not value or link in rows:
-            return {}
-        rows[link]=value
-    return rows if len(rows)>1 and set(rows)==links(text) else {}
+            if value: values.append(value)
+        bare=re.fullmatch(r'\s*(?:[-•]\s*)?'+NUMBER+suffix,local,re.I)
+        if bare:
+            value=number(float(bare[1].replace(',','')))
+            if value: values.append(value)
+        value=unique(values)
+        if value is not None:
+            if link.group() in rows and rows[link.group()]!=value:
+                rows.pop(link.group(),None)
+            else:
+                rows[link.group()]=value
+    return rows
 
 
 def split_priced_products(text, products):
@@ -253,7 +263,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':10,'effective_price_condition':evidence['effective_price_condition'],'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':11,'effective_price_condition':evidence['effective_price_condition'],'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output
