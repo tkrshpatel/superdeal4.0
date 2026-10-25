@@ -292,3 +292,21 @@ for (const [label, expected] of [
     dom.window.close();
   });
 }
+
+
+test('effective source price uses normal price typography and a separate qualifier',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'effective',product_name:'Orient Electric Ceiling Fan',
+    offer_facts:{version:4,current_price:1500,effective_price:1255,mrp:2500,discount_pct:null,
+      conditional_offers:[{label:'Coupon offer: 7% off'}]}}]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(r=>setTimeout(r,0));
+  const card=d.querySelector('.deal-card'),price=card.querySelector('.price-row');
+  assert.match(price.textContent,/1,255/);
+  assert.doesNotMatch(price.textContent,/1,500|2,500|Effective|7%/);
+  assert.equal(price.querySelector('.unknown-price'),null);
+  assert.match(card.querySelector('.card-top').textContent,/Effective price/);
+  card.querySelector('.title-button').click();
+  assert.match(d.querySelector('#detail').textContent,/Effective price; apply/);
+  dom.window.close();
+});

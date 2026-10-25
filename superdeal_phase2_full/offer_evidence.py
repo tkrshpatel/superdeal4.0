@@ -14,7 +14,7 @@ RUPEES = re.compile(CURRENCY+NUMBER, re.I)
 STARTING = re.compile(r'\b(?:starting\s*(?:from|at)?|from)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
 CONDITIONAL = re.compile(r'coupon|promo|cashback|effective|after|using|subscription|new\s+users?|first\s+order|\bbogo\b|\bbuy\s*\d.*\bget\s*\d|\bbank\b|\bcard\b|credit|debit|exchange|\bemi\b|\bhdfc\b|\bsbi\b|\bicici\b|\baxis\b|\bextra\b|additional|\bon\s+(?:orders?|spend)\b|minimum\s+(?:order|spend)', re.I)
-PUBLIC_KEYS = {'starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
+PUBLIC_KEYS = {'effective_price','starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
 
 
 def number(value, maximum=100000000):
@@ -37,12 +37,19 @@ def product_evidence(text, products, product):
         return ''
     if len(products)==1 and attached==all_links:
         return text
+    # A single headline followed only by named colour links describes variants.
+    matches=list(URL.finditer(text))
+    if len(matches)>1:
+        tail=URL.sub('',text[matches[0].end():])
+        colours=r'(?:brown|white|blue|black|red|green|grey|gray|silver|gold|pink|yellow|orange|purple|beige)'
+        if re.fullmatch(r'(?:[\s•:,*\[\]()\-–—/]|'+colours+r')*',tail,re.I):
+            return text[:matches[0].start()]
     candidates=[p for p in re.split(r'\n\s*\n',text) if links(p)==attached]
     return candidates[0] if len(attached)==1 and len(candidates)==1 else ''
 
 
 def extract(text):
-    prices, mrps, discounts, conditional, savings, starts = [], [], [], [], [], []
+    prices, mrps, discounts, conditional, savings, starts, effective = [], [], [], [], [], [], []
     text = URL.sub('', text)
     # A separate "+ Apply Coupon" instruction does not qualify every prior headline.
     for raw in re.split(r'[\n;|]+|\s*\+\s*(?=(?:apply|use|collect|extra|additional|bank)\b)', text, flags=re.I):
@@ -50,6 +57,15 @@ def extract(text):
         if not line:
             continue
         percent = list(PERCENT.finditer(line))
+        if re.search(r'\beffective\s*price\b',line,re.I) and not re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b',line,re.I):
+            # Preserve an explicitly quoted effective price, never calculate it.
+            candidates=list(AT_PRICE.finditer(line))+list(RUPEES.finditer(line))
+            if not candidates:
+                candidates=list(PRICE.finditer(line))
+            for amount in candidates:
+                if not re.match(r'\s*(?:%|off\b|cashback\b)',line[amount.end():],re.I):
+                    value=number(float(amount[1].replace(',','')))
+                    if value: effective.append(value)
         if CONDITIONAL.search(line):
             offer_type = ('Cashback' if re.search('cashback', line, re.I)
                           else 'Bank offer' if re.search(r'card|bank|hdfc|sbi|icici|axis', line, re.I)
@@ -116,7 +132,7 @@ def extract(text):
                          (discounts, 'AMBIGUOUS_SOURCE_DISCOUNT')):
         if len(set(values)) > 1:
             conflicts.append(code)
-    return {'current_price': unique(prices), 'mrp': unique(mrps), 'discount': unique(discounts),
+    return {'effective_price': unique(effective), 'current_price': unique(prices), 'mrp': unique(mrps), 'discount': unique(discounts),
             'conditional_offers': conditional, 'starting_price': unique(starts), 'stated_savings': unique(savings), '_conflicts': conflicts}
 
 
@@ -157,7 +173,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':3,'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':4,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output

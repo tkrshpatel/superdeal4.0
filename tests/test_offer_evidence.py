@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==3
+    assert fields['offer_facts']['version']==4
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,4 +194,26 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==3
+    assert fields['offer_facts']['version']==4
+
+
+def test_orient_effective_price_with_three_colour_links():
+    urls=['https://amzn-to.co/M6St5X','https://amzn-to.co/o0bCYM','https://amzn-to.co/VQYhTS']
+    text='52% OFF: Orient Electric Ceiling Fans @ ₹1,255 [Effective Price] Apply 7% Coupon • Brown: '+urls[0]+' • White: '+urls[1]+' • Blue: '+urls[2]
+    products=[product(u) for u in urls]
+    facts=resolve_offers(text,products,{u:{'price':1500,'price_source':'json_ld'} for u in urls})
+    assert all(f['effective_price']==1255 for f in facts)
+    assert all(f['current_price']==1500 for f in facts)
+    assert all(f['mrp'] is None for f in facts)
+    assert all(any('7% off' in o['label'] for o in f['conditional_offers']) for f in facts)
+    assert public_facts(facts[0])['effective_price']==1255
+
+def test_distinct_products_do_not_share_headline_price():
+    a,b='https://affiliate.example/a','https://affiliate.example/b'
+    facts=resolve_offers('Fan @1255 [Effective Price] '+a+' • Headphones: '+b,[product(a),product(b)])
+    assert all(f['effective_price'] is None for f in facts)
+
+def test_explicit_effective_price_is_preserved_without_becoming_base_price():
+    f=resolve('Effective price ₹499')
+    assert f['effective_price']==499
+    assert f['current_price'] is None
