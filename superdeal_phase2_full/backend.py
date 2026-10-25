@@ -332,6 +332,9 @@ class Backend:
             # Python, then retain the original strict publication validator.
             restored_response = restore_affiliate_urls(llm_response, converted['response_text'])
             parsed = self.validate(restored_response, converted['response_text'])
+            from offer_evidence import split_priced_products
+            parsed['products'] = split_priced_products(converted['response_text'], parsed['products'])
+            parsed = self.validate(parsed, converted['response_text'])
             if research is not None:
                 from marketplace_reconciliation import fill_missing_marketplace
                 restored_markets = fill_missing_marketplace(parsed['products'], research)
@@ -453,7 +456,7 @@ class Backend:
         """Read old source evidence without rewriting published records."""
         from offer_evidence import resolve_offers, public_facts
         facts = fact.get('offer_facts')
-        if not isinstance(facts, dict) or facts.get('version') != 4:
+        if not isinstance(facts, dict) or facts.get('version') != 5:
             raw_id, publication = fact.get('raw_id'), fact.get('publication_id')
             if raw_id is None or not publication:
                 return {}

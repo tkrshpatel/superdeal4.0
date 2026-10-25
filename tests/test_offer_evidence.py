@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==4
+    assert fields['offer_facts']['version']==5
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==4
+    assert fields['offer_facts']['version']==5
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -217,3 +217,23 @@ def test_explicit_effective_price_is_preserved_without_becoming_base_price():
     f=resolve('Effective price ₹499')
     assert f['effective_price']==499
     assert f['current_price'] is None
+
+
+def test_price_url_rows_split_model_group_and_keep_each_price():
+    from offer_evidence import split_priced_products
+    urls=['https://amazon.in/dp/B0CGQ834KW?tag=test','https://amazon.in/dp/B0CZNPGM9W?tag=test','https://amazon.in/dp/B0C73X2JQR?tag=test']
+    text='Upto 50% Off On Crompton 1HP Water Pumps + Bank Offer\n\n'+'\n'.join(str(p)+' : '+u for p,u in zip([4099,3699,4582],urls))
+    grouped={**product(),'affiliate_urls':urls}
+    products=split_priced_products(text,[grouped])
+    assert [p['affiliate_urls'] for p in products]==[[u] for u in urls]
+    facts=resolve_offers(text,products)
+    assert [f['current_price'] for f in facts]==[4099,3699,4582]
+    assert all(f['discount_pct']==50 and f['discount_kind']=='up_to' for f in facts)
+    assert grouped['affiliate_urls']==urls
+
+def test_incomplete_price_rows_do_not_split_or_borrow_price():
+    from offer_evidence import split_priced_products, priced_link_rows
+    text='4099 : '+LINK+'\nUnknown price: https://affiliate.example/b'
+    assert priced_link_rows(text)=={}
+    p={**product(),'affiliate_urls':[LINK,'https://affiliate.example/b']}
+    assert split_priced_products(text,[p])==[p]

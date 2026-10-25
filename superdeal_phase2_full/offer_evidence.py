@@ -28,6 +28,37 @@ def unique(values):
     return next(iter(values)) if len(values)==1 else None
 
 
+def priced_link_rows(text):
+    """Only accept a complete, unambiguous list of price: URL rows."""
+    rows={}
+    for line in text.splitlines():
+        found=list(URL.finditer(line))
+        if len(found)!=1:
+            continue
+        match=re.fullmatch(r'\s*(?:[-•]\s*)?(?:'+CURRENCY+r')?'+NUMBER+r'\s*:\s*[\[(]*\s*',line[:found[0].start()],re.I)
+        if not match:
+            continue
+        value=number(float(match[1].replace(',','')))
+        link=found[0].group()
+        if not value or link in rows:
+            return {}
+        rows[link]=value
+    return rows if len(rows)>1 and set(rows)==links(text) else {}
+
+
+def split_priced_products(text, products):
+    """Deterministic link/price rows override model grouping, never URLs."""
+    rows=priced_link_rows(text)
+    if not rows:
+        return products
+    result=[]
+    for product in products:
+        attached=product.get('affiliate_urls') or []
+        for link in attached:
+            result.append({**product,'affiliate_urls':[link]})
+    return result
+
+
 def product_evidence(text, products, product):
     attached=set(product.get('affiliate_urls') or [])
     all_links=links(text)
@@ -35,6 +66,12 @@ def product_evidence(text, products, product):
         return ''
     if any(attached & set(other.get('affiliate_urls') or []) for other in products if other is not product):
         return ''
+    rows=priced_link_rows(text)
+    if len(attached)==1 and next(iter(attached)) in rows:
+        # The header applies to every row; each price belongs only to its URL.
+        first_url=URL.search(text)
+        header=text[:first_url.start()].rsplit('\n',1)[0] if first_url else ''
+        return header+'\nPrice: ₹'+str(rows[next(iter(attached))])
     if len(products)==1 and attached==all_links:
         return text
     # A single headline followed only by named colour links describes variants.
@@ -173,7 +210,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':4,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':5,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output
