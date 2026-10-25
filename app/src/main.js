@@ -145,6 +145,7 @@ function priceMarkup(d) {
 // Defence in depth for old APIs and cached records: never render source metadata.
 const privateText = /earn\s*karo|telegram|(?:https?:\/\/)?(?:t\.me|telegram\.me)\/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research/i;
 const shopperText = value => String(value ?? '').split('\n').filter(line=>!privateText.test(line)).join('\n').trim();
+const offerLabel = value => shopperText(value).replace(/^Coupon offer:\s*/i, '');
 function supportedTerms(d) {
   const t=d.deal_terms;
   return t && typeof t==='object' ? t : null;
@@ -158,7 +159,7 @@ function termsMarkup(d) {
     const match=line.match(/^coupon\s*:\s*([A-Za-z0-9][A-Za-z0-9_-]{1,29})\s*$/i);
     if (match && !codes.includes(match[1]) && !/^\d+$/.test(match[1])) codes.push(match[1]);
   }
-  const extra=Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.map(o=>shopperText(o?.label)).filter(Boolean):[];
+  const extra=Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.map(o=>offerLabel(o?.label)).filter(Boolean):[];
   const advertised=d.offer_facts?.advertised_discount;
   if(advertised?.kind==='up_to' && d.offer_facts?.discount_kind==='calculated' && Number(advertised.value)>0 && Number(advertised.value)<=100)extra.push('Advertised offer: Up to '+Number(advertised.value)+'% off');
   const details=[...new Set([...lines('instructions'),...lines('conditions'),...extra])];
@@ -186,7 +187,7 @@ function card(d) {
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : conditional?`<span class="discount-badge">${esc(shopperText(conditional.label))}</span>`:''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
+      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : conditional?`<span class="discount-badge">${esc(offerLabel(conditional.label))}</span>`:''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>

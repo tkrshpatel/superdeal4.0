@@ -255,3 +255,18 @@ test('Eha headline shows Up to 52% off and From price alongside coupon badge',as
   assert.match(d.querySelector('#detail').textContent,/Apply coupon/);
   dom.window.close();
 });
+
+test('coupon percentage label omits Coupon offer prefix in cards and details',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'coupon',product_name:'Pots',
+    offer_facts:{version:2,current_price:null,mrp:null,discount_pct:null,discount_kind:null,
+    conditional_offers:[{label:'Coupon offer: 52% off',kind:'coupon_offer'}]}}]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
+  const card=d.querySelector('.deal-card');
+  assert.equal(card.querySelector('.discount-badge').textContent,'52% off');
+  assert.doesNotMatch(card.textContent,/Coupon offer:/i);
+  card.querySelector('.title-button').click();
+  assert.match(d.querySelector('#detail').textContent,/52% off/);
+  assert.doesNotMatch(d.querySelector('#detail').textContent,/Coupon offer:/i);
+  dom.window.close();
+});
