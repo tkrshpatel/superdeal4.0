@@ -2,7 +2,7 @@ name: Mobile App
 
 on:
   push:
-    branches: [main, 'phase-*']
+    branches: [main, 'phase-*', 'feat/category-offer-context']
   pull_request:
     branches: [main]
 
