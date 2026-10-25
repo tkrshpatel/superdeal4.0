@@ -218,3 +218,24 @@ test('grid pagination renders 24 at a time and search reaches beyond the first 1
   assert.equal(d.querySelector('#feed-pagination').hidden,true);
   dom.window.close();
 });
+
+test('cards/details preserve exact, up-to and conditional discount distinctions',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[
+    {id:'exact',product_name:'Headphones',offer_facts:{version:1,current_price:null,mrp:null,discount_pct:60,discount_kind:'exact'}},
+    {id:'upto',product_name:'Shoes',offer_facts:{version:1,current_price:499,mrp:null,discount_pct:80,discount_kind:'up_to'}},
+    {id:'bank',product_name:'Watch',offer_facts:{version:1,current_price:500,mrp:1000,discount_pct:50,discount_kind:'calculated',conditional_offers:[{label:'Bank offer: 10% off'}]}}
+  ]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
+  const cards=d.querySelectorAll('.deal-card');
+  assert.match(cards[0].textContent,/60% off/);assert.match(cards[0].textContent,/HOT/);
+  assert.equal(cards[0].querySelector('s'),null);
+  assert.match(cards[1].textContent,/Up to 80% off/);assert.doesNotMatch(cards[1].textContent,/HOT/);
+  d.querySelector('[data-filter=discount]').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,2);
+  d.querySelector('[data-filter=latest]').click();
+  d.querySelector('[data-open=bank] .title-button').click();
+  assert.match(d.querySelector('#detail').textContent,/Bank offer: 10% off/);
+  assert.doesNotMatch(d.querySelector('#detail').textContent,/earnkaro|telegram/i);
+  dom.window.close();
+});

@@ -54,3 +54,26 @@ test('hot uses strict unrounded discount and requires a valid price pair',async(
   assert.equal(isHotDeal({current_price:501,mrp:1000}),false);
   assert.equal(isHotDeal({current_price:200,discount_pct:80}),false);
 });
+
+const sourceFacts=(overrides={})=>({offer_facts:{version:1,current_price:null,mrp:null,discount_pct:null,discount_kind:null,conditional_offers:[],...overrides}});
+test('exact source discount survives absent price/MRP and qualifies for HOT above 50',async()=>{
+  const {isHotDeal}=await import('../src/deal-facts.js');
+  const d=sourceFacts({discount_pct:60,discount_kind:'exact'});
+  assert.deepEqual(priceFacts(d),{current:null,mrp:null,saving:null,discount:60});
+  assert.equal(isHotDeal(d),true);
+  assert.equal(isHotDeal(sourceFacts({discount_pct:50,discount_kind:'exact'})),false);
+});
+test('up-to discount displays as an offer but never qualifies as HOT',async()=>{
+  const {isHotDeal}=await import('../src/deal-facts.js');
+  const d=sourceFacts({discount_pct:80,discount_kind:'up_to'});
+  assert.equal(priceFacts(d).discount,80);assert.equal(priceFacts(d).saving,null);assert.equal(isHotDeal(d),false);
+});
+test('authoritative empty evidence blocks invented legacy model values',()=>{
+  const d={current_price:1,mrp:1000,discount_pct:99,...sourceFacts()};
+  assert.deepEqual(priceFacts(d),{current:null,mrp:null,saving:null,discount:null});
+});
+test('conditional discounts are never added to calculated base discounts',async()=>{
+  const {isHotDeal}=await import('../src/deal-facts.js');
+  const d=sourceFacts({current_price:500,mrp:1000,discount_pct:50,discount_kind:'calculated',conditional_offers:[{label:'Bank offer: 10% off'}]});
+  assert.equal(priceFacts(d).discount,50);assert.equal(priceFacts(d).saving,500);assert.equal(isHotDeal(d),false);
+});

@@ -132,9 +132,13 @@ const displayMerchant = displayRetailer;
 const displayTitle = d => shopperText(d.product_name) || shopperText(d.page_title) || 'SuperDeals Find';
 const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
 const offerType = d => priceFacts(d).current !== null ? 'Product deal' : 'Offer';
+function discountLabel(d) {
+  const pct=priceFacts(d).discount;
+  return pct===null?'':(d.offer_facts?.discount_kind==='up_to'?'Up to ':'')+pct+'% off';
+}
 function priceMarkup(d) {
   const p = priceFacts(d);
-  return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${money(p.current)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : ''}</div>`;
+  return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${money(p.current)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : p.discount!==null?`<span class="saving">${esc(discountLabel(d))}</span>`:''}</div>`;
 }
 // Defence in depth for old APIs and cached records: never render source metadata.
 const privateText = /earn\s*karo|telegram|(?:https?:\/\/)?(?:t\.me|telegram\.me)\/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research/i;
@@ -144,8 +148,7 @@ function supportedTerms(d) {
   return t && typeof t==='object' ? t : null;
 }
 function termsMarkup(d) {
-  const t=supportedTerms(d);
-  if (!t) return '';
+  const t=supportedTerms(d)||{};
   const lines=key=>Array.isArray(t[key])?t[key].filter(v=>typeof v==='string').map(shopperText).filter(Boolean):[];
   const codes=lines('coupon_codes');
   // Older published records may contain only a short explicit coupon excerpt.
@@ -153,7 +156,8 @@ function termsMarkup(d) {
     const match=line.match(/^coupon\s*:\s*([A-Za-z0-9][A-Za-z0-9_-]{1,29})\s*$/i);
     if (match && !codes.includes(match[1]) && !/^\d+$/.test(match[1])) codes.push(match[1]);
   }
-  const details=[...new Set([...lines('instructions'),...lines('conditions')])];
+  const extra=Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.map(o=>shopperText(o?.label)).filter(Boolean):[];
+  const details=[...new Set([...lines('instructions'),...lines('conditions'),...extra])];
   if (!codes.length && !details.length) return '';
   return `<section class="deal-terms" aria-label="Deal details"><h3>Below are details:</h3>
     ${codes.map(code=>`<div class="coupon-code"><code>${esc(code)}</code><button type="button" data-copy-code="${esc(code)}">Copy code</button></div>`).join('')}
@@ -177,7 +181,7 @@ function card(d) {
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${p.discount}% off</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
+      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>
@@ -238,9 +242,9 @@ function localFilter(list) {
   const merchants = state.merchants;
   const category = document.querySelector('#category-filter').value;
   result = result.filter(d => (!merchants.size || merchants.has(displayMerchant(d))) && (!category || d.category === category));
-  if (state.active === 'drops') result = result.filter(d => priceFacts(d).saving > 0);
+  if (state.active === 'drops') result = result.filter(d => priceFacts(d).saving > 0 || (d.offer_facts?.discount_kind !== 'up_to' && priceFacts(d).discount > 0));
   if (state.active === 'under499') result = result.filter(d => priceFacts(d).current !== null && priceFacts(d).current < 500);
-  if (state.active === 'discount') result = result.filter(d => priceFacts(d).discount >= 50);
+  if (state.active === 'discount') result = result.filter(d => d.offer_facts?.discount_kind !== 'up_to' && priceFacts(d).discount >= 50);
   if (state.active === 'hot') result = result.filter(isHotDeal);
   if (state.active === 'saved') result = result.filter(d => state.saved.has(String(d.id)));
   return result;

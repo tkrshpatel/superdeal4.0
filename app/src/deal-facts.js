@@ -1,14 +1,19 @@
-const validPrice = v => v != null && v !== '' && Number.isFinite(Number(v)) && Number(v) > 0;
+const validPrice = v => typeof v !== 'boolean' && v != null && v !== '' && Number.isFinite(Number(v)) && Number(v) > 0;
+const evidence = d => d.offer_facts?.version === 1 ? d.offer_facts : null;
 export function priceFacts(d) {
-  const current = validPrice(d.current_price) ? Number(d.current_price) : validPrice(d.verified_price) ? Number(d.verified_price) : null;
-  const mrp = validPrice(d.mrp) && current !== null && Number(d.mrp) > current ? Number(d.mrp) : null;
-  return {current, mrp, saving: mrp === null ? null : mrp-current, discount: mrp === null ? null : Math.round((mrp-current)*100/mrp)};
+  const f=evidence(d);
+  const current = f ? (validPrice(f.current_price)?Number(f.current_price):null) : validPrice(d.current_price) ? Number(d.current_price) : validPrice(d.verified_price) ? Number(d.verified_price) : null;
+  const original=f?f.mrp:d.mrp;
+  const mrp=validPrice(original)&&current!==null&&Number(original)>current?Number(original):null;
+  const stated=f&&['exact','up_to'].includes(f.discount_kind)&&validPrice(f.discount_pct)&&Number(f.discount_pct)<=100?Number(f.discount_pct):null;
+  return {current,mrp,saving:mrp===null?null:mrp-current,discount:stated??(mrp===null?null:Math.round((mrp-current)*100/mrp))};
 }
 
-// Use the exact price ratio, not the rounded display percentage.
-export function isHotDeal(deal) {
-  const {current,mrp}=priceFacts(deal);
-  return current !== null && mrp !== null && current < mrp / 2;
+export function isHotDeal(d) {
+  const f=evidence(d),{current,mrp}=priceFacts(d);
+  if(f?.discount_kind==='up_to')return false;
+  if(f?.discount_kind==='exact')return Number(f.discount_pct)>50&&Number(f.discount_pct)<=100;
+  return current!==null&&mrp!==null&&current<mrp/2;
 }
 
 // Normalize labels only. Affiliate URLs are never changed or used to guess a store.

@@ -2,7 +2,7 @@
 import re
 
 PRIVATE_TEXT = re.compile(r'earn\s*karo|telegram|(?:https?://)?(?:t\.me|telegram\.me)/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research', re.I)
-PRIVATE_KEYS = {'raw_text','source_excerpts','source','raw_id','response_text','response_payload','llm_response','analysis_summary','issues','message_issues','channel','channel_name','channel_username','telegram_channel','preview_source_raw_id'}
+PRIVATE_KEYS = {'_sources','_conflicts','raw_text','source_excerpts','source','raw_id','response_text','response_payload','llm_response','analysis_summary','issues','message_issues','channel','channel_name','channel_username','telegram_channel','preview_source_raw_id'}
 TEXT_KEYS = {'product_name','page_title','brand','merchant','ecommerce_platform','enriched_merchant','description','offer_type','instructions','conditions','coupon_codes'}
 
 
@@ -13,6 +13,9 @@ def shopper_text(value):
 
 def public_payload(value, key=None):
     if isinstance(value,dict):
+        if key == 'offer_facts':
+            from offer_evidence import public_facts
+            value = public_facts(value)
         if key == 'deal_terms':
             value = dict(value)
             codes = list(value.get('coupon_codes') or [])
