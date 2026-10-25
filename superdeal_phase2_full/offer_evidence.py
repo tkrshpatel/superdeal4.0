@@ -40,56 +40,77 @@ def product_evidence(text, products, product):
 
 
 def extract(text):
-    prices=[];mrps=[];discounts=[];conditional=[];savings=[]
-    for raw in re.split(r'[\n;|]+',text):
-        line=URL.sub('',raw).strip()
-        if not line:continue
-        percent=list(PERCENT.finditer(line))
+    prices, mrps, discounts, conditional, savings = [], [], [], [], []
+    for raw in re.split(r'[\n;|]+', text):
+        line = URL.sub('', raw).strip()
+        if not line:
+            continue
+        percent = list(PERCENT.finditer(line))
         if CONDITIONAL.search(line):
-            # Do not promote effective/coupon/bank prices or percentages to base facts.
+            offer_type = ('Cashback' if re.search('cashback', line, re.I)
+                          else 'Bank offer' if re.search(r'card|bank|hdfc|sbi|icici|axis', line, re.I)
+                          else 'Coupon offer' if re.search('coupon|promo', line, re.I)
+                          else 'Additional offer')
             for match in percent:
-                if re.search(r'\d\s*[-–—]\s*float(match[2] or match[3])
-                if 0 < value <= 100:
-                    kind='up_to' if re.sub(r'\s', '', match[1] or '').lower() in ('upto',) else 'exact'
-                    label=('Up to ' if kind=='up_to' else '')+f'{value:g}% off'
-                    offer_type='Cashback' if re.search('cashback',line,re.I) else 'Bank offer' if re.search(r'card|bank|hdfc|sbi|icici|axis',line,re.I) else 'Coupon offer' if re.search('coupon|promo',line,re.I) else 'Additional offer'
-                    if offer_type=='Cashback':label=('Up to ' if kind=='up_to' else '')+f'{value:g}% cashback'
-                    item={'label':offer_type+': '+label,'kind':offer_type.lower().replace(' ','_')}
-                    if item not in conditional:conditional.append(item)
+                if re.search(r'\d\s*[-–—]\s*$', line[:match.start()]):
+                    continue
+                value = float(match[2] or match[3])
+                if not 0 < value <= 100:
+                    continue
+                qualifier = 'Up to ' if re.sub(r'\s', '', match[1] or '').lower() == 'upto' else ''
+                suffix = 'cashback' if offer_type == 'Cashback' else 'off'
+                item = {'label': offer_type + ': ' + qualifier + f'{value:g}% {suffix}',
+                        'kind': offer_type.lower().replace(' ', '_')}
+                if item not in conditional:
+                    conditional.append(item)
             if not percent:
                 for amount in RUPEES.finditer(line):
-                    value=number(float(amount[1].replace(',','')))
-                    if value and (re.match(r'\s*(?:off|cashback)\b',line[amount.end():],re.I) or re.search(r'cashback|save',line[:amount.start()],re.I)):
-                        qualifier='Up to ' if re.search(r'(?:up\s*to|upto|max(?:imum)?)\s*
-        foreign=bool(re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b',line,re.I))
-        mrp_matches=[] if foreign else list(MRP.finditer(line))
-        for match in mrp_matches:
-            value=number(float(match[1].replace(',','')))
-            if value:mrps.append(value)
-        # Mask the MRP span so its "price" or currency cannot be read as the selling price.
-        clean='' if foreign else MRP.sub('',line)
-        found=list(PRICE.finditer(clean))
-        if not found:
-            if not re.search(r'save|saving|discount|\boff\b',clean,re.I):
-                found=list(RUPEES.finditer(clean))
+                    value = number(float(amount[1].replace(',', '')))
+                    prefix, tail = line[:amount.start()], line[amount.end():]
+                    if value and (re.match(r'\s*(?:off|cashback)\b', tail, re.I)
+                                  or re.search(r'cashback|save', prefix, re.I)):
+                        qualifier = 'Up to ' if re.search(r'(?:up\s*to|upto|max(?:imum)?)\s*$', prefix, re.I) else ''
+                        item = {'label': offer_type + ': ' + qualifier + f'₹{value:g}',
+                                'kind': 'conditional_amount'}
+                        if item not in conditional:
+                            conditional.append(item)
+            continue
+        foreign = bool(re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b', line, re.I))
+        for match in ([] if foreign else MRP.finditer(line)):
+            value = number(float(match[1].replace(',', '')))
+            if value:
+                mrps.append(value)
+        # Keep original-price amounts out of selling-price extraction.
+        clean = '' if foreign else MRP.sub('', line)
+        found = list(PRICE.finditer(clean))
+        if not found and not re.search(r'save|saving|discount|\boff\b', clean, re.I):
+            found = list(RUPEES.finditer(clean))
         for amount in RUPEES.finditer(clean):
-            if re.search(r'save|saving',clean[:amount.start()],re.I) or re.match(r'\s*off\b',clean[amount.end():],re.I):
-                value=number(float(amount[1].replace(',','')))
-                if value:savings.append(value)
+            if (re.search(r'save|saving', clean[:amount.start()], re.I)
+                    or re.match(r'\s*off\b', clean[amount.end():], re.I)):
+                value = number(float(amount[1].replace(',', '')))
+                if value:
+                    savings.append(value)
         for match in found:
-            end=clean[match.end():].lstrip()
-            if end.startswith('%'):continue
-            value=number(float(match[1].replace(',','')))
-            if value:prices.append(value)
+            if clean[match.end():].lstrip().startswith('%'):
+                continue
+            value = number(float(match[1].replace(',', '')))
+            if value:
+                prices.append(value)
         for match in percent:
-            # A range such as 20–60% is not an exact 60% claim.
-            if re.search(r'\d\s*[-–—]\s*$',line[:match.start()]):continue
-            value=float(match[2] or match[3])
+            if re.search(r'\d\s*[-–—]\s*$', line[:match.start()]):
+                continue
+            value = float(match[2] or match[3])
             if 0 < value <= 100:
-                kind='up_to' if re.sub(r'\s', '', match[1] or '').lower()=='upto' else 'exact'
-                discounts.append((value,kind))
-    return {'current_price':unique(prices),'mrp':unique(mrps),'discount':unique(discounts),'conditional_offers':conditional,'stated_savings':unique(savings),
-            '_conflicts':(['AMBIGUOUS_SOURCE_PRICE'] if len(set(prices))>1 else [])+(['AMBIGUOUS_SOURCE_MRP'] if len(set(mrps))>1 else [])+(['AMBIGUOUS_SOURCE_DISCOUNT'] if len(set(discounts))>1 else [])}
+                kind = 'up_to' if re.sub(r'\s', '', match[1] or '').lower() == 'upto' else 'exact'
+                discounts.append((value, kind))
+    conflicts = []
+    for values, code in ((prices, 'AMBIGUOUS_SOURCE_PRICE'), (mrps, 'AMBIGUOUS_SOURCE_MRP'),
+                         (discounts, 'AMBIGUOUS_SOURCE_DISCOUNT')):
+        if len(set(values)) > 1:
+            conflicts.append(code)
+    return {'current_price': unique(prices), 'mrp': unique(mrps), 'discount': unique(discounts),
+            'conditional_offers': conditional, 'stated_savings': unique(savings), '_conflicts': conflicts}
 
 
 def resolve_offers(text, products, research=None):
