@@ -164,6 +164,34 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==2
+    assert fields['offer_facts']['version']==3
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
+
+
+@pytest.mark.parametrize('text', [
+    'Headphones @252', 'Headphones @ 252 only', 'Headphones @₹252',
+    'Headphones Rs 252 only', 'Headphones Rs.252 only', 'Headphones ₹252 only',
+    'Headphones INR 252 only', 'Headphones @252; 50% off',
+])
+def test_message_price_precedes_browser_price(text):
+    f=resolve(text,{LINK:{'price':500,'price_source':'json_ld'}})
+    assert f['current_price']==252
+    assert f['_sources']['current_price']=='earnkaro'
+
+@pytest.mark.parametrize('text', ['Headphones', '50% off', '₹200 off'])
+def test_browser_price_is_used_when_source_has_no_selling_price(text):
+    f=resolve(text,{LINK:{'price':500,'price_source':'json_ld'}})
+    assert f['current_price']==500
+    assert f['_sources']['current_price']=='browser'
+
+def test_version_two_price_is_recovered_from_saved_message():
+    db=mongomock.MongoClient().db
+    raw=ObjectId()
+    db.ek_raw.insert_one({'raw_id':raw,'response_text':'Headphones @252\n'+LINK})
+    doc={'raw_id':raw,'publication_id':'price-recovery','offer_index':0,'product':product(),
+         'offer_facts':{'version':2,'current_price':500}}
+    db.fact_table.insert_one(doc)
+    fields=Backend(db)._offer_fields(doc)
+    assert fields['deal_price']==252
+    assert fields['offer_facts']['version']==3
