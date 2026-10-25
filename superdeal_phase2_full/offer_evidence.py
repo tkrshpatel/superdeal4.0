@@ -12,7 +12,7 @@ PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@
 AT_PRICE = re.compile(r'(?<![\w@])@\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 RUPEES = re.compile(CURRENCY+NUMBER, re.I)
 STARTING = re.compile(r'\b(?:start(?:ing|s)?\s*(?:from|at)?|from)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
-PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
+PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback|coupon)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
 CONDITIONAL = re.compile(r'coupon|promo|cashback|effective|after|using|subscription|new\s+users?|first\s+order|\bbogo\b|\bbuy\s*\d.*\bget\s*\d|\bbank\b|\bcard\b|credit|debit|exchange|\bemi\b|\bhdfc\b|\bsbi\b|\bicici\b|\baxis\b|\bextra\b|additional|\bon\s+(?:orders?|spend)\b|minimum\s+(?:order|spend)', re.I)
 PUBLIC_KEYS = {'effective_price_condition','effective_price','starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
 
@@ -52,7 +52,7 @@ def priced_link_rows(text):
             if any(m.start()<=match.start()<m.end() for m in MRP.finditer(local)):
                 continue
             before=local[:match.start()]
-            if re.search(r'(?:start(?:ing|s)?(?:\s+(?:from|at))?|from|save|saving|cashback|mrp|original\s*price)\s*[:=-]?\s*$',before,re.I):
+            if re.search(r'(?:start(?:ing|s)?(?:\s+(?:from|at))?|from|save|savings?|cashback|mrp|original\s*price)\s*[:=-]?\s*$',before,re.I):
                 continue
             if CONDITIONAL.search(local) or re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b',local,re.I):
                 continue
@@ -100,7 +100,7 @@ def product_evidence(text, products, product):
     if any(attached & set(other.get('affiliate_urls') or []) for other in products if other is not product):
         return ''
     rows=priced_link_rows(text)
-    if len(attached)==1 and next(iter(attached)) in rows:
+    if len(all_links)>1 and len(attached)==1 and next(iter(attached)) in rows:
         # The header applies to every row; each price belongs only to its URL.
         first_url=URL.search(text)
         prefix=text[:first_url.start()] if first_url else ''

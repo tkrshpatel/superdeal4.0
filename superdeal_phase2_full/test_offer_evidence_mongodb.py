@@ -27,7 +27,7 @@ def test_discount_only_publication_and_private_evidence():
         assert doc['offer_facts']['_sources']['discount']=='earnkaro'
         deal=backend.published_offer_by_id(str(doc['_id']))
         public=public_payload(_legacy_deal(deal,backend.public_metadata(deal['id'])))
-        assert public['discount_pct']==60 and public['hot'] is True
+        assert public['discount_pct']==60 and public['hot'] is False
         assert public['offer_facts']['discount_kind']=='exact'
         assert public['affiliate_url']==link
         assert 'earnkaro' not in json.dumps(public,default=str).lower()

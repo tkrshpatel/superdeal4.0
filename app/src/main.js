@@ -192,7 +192,7 @@ const age = value => {
 function card(d) {
   const title = displayTitle(d), merchant = displayMerchant(d), p = priceFacts(d);
   const saved = state.saved.has(String(d.id));
-  const conditional = Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.find(o=>typeof o?.label==='string' && /%|₹/.test(o.label)):null;
+  const conditional = Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.find(o=>typeof o?.label==='string' && /%|₹|\bRs\.?\s*\d|\bINR\s*\d/i.test(o.label)):null;
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
