@@ -235,7 +235,8 @@ test('cards/details preserve exact, up-to and conditional discount distinctions'
   assert.equal(d.querySelectorAll('.deal-card').length,2);
   d.querySelector('[data-filter=latest]').click();
   d.querySelector('[data-open=bank] .title-button').click();
-  assert.match(d.querySelector('#detail').textContent,/Bank offer: 10% off/);
+  assert.match(d.querySelector('#detail').textContent,/10% off/);
+  assert.doesNotMatch(d.querySelector('#detail').textContent,/Bank offer:/);
   assert.doesNotMatch(d.querySelector('#detail').textContent,/earnkaro|telegram/i);
   dom.window.close();
 });
@@ -270,3 +271,20 @@ test('coupon percentage label omits Coupon offer prefix in cards and details',as
   assert.doesNotMatch(d.querySelector('#detail').textContent,/Coupon offer:/i);
   dom.window.close();
 });
+
+for (const [label, expected] of [
+  ['Bank offer: 20% off','20% off'],
+  ['Additional offer: 10% off','10% off'],
+  ['Cashback: Up to 15% cashback','Up to 15% cashback'],
+  ['Cashback: ₹500','₹500 cashback']
+]) {
+  test('clean display label: '+label, async()=>{
+    const dom=await setup(),w=dom.window,d=w.document;
+    w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'clean',product_name:'Test product',
+      offer_facts:{version:2,current_price:null,mrp:null,discount_pct:null,discount_kind:null,conditional_offers:[{label}]}}]})});
+    d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+    await new Promise(r=>setTimeout(r,0));
+    assert.equal(d.querySelector('.discount-badge').textContent,expected);
+    dom.window.close();
+  });
+}
