@@ -28,16 +28,56 @@ def unique(values):
     return next(iter(values)) if len(values)==1 else None
 
 
-def priced_link_rows(text):
+def post_link_prices(text):
+    """Only a same-line amount directly after a URL belongs to that URL."""
+    rows,spans={},[]
+    for link in URL.finditer(text):
+        end=text.find('\n',link.end())
+        end=len(text) if end<0 else end
+        tail=text[link.end():end]
+        match=re.fullmatch(r'[ \t)\]]*(?:@\s*)?(?:'+CURRENCY+r')?'+NUMBER+r'[ \t.!;:]*',tail,re.I)
+        if match:
+            value=number(float(match[1].replace(',','')))
+            if value:
+                rows[link.group().rstrip('.,;!?)')]=value
+                spans.append((link.end(),end))
+    return rows,spans
+
+
+def post_link_names(text):
+    """Keep explicit titles near links in mixed title/link/price messages."""
+    post,_=post_link_prices(text)
+    if not post:
+        return {}
+    names={}
+    previous=0
+    for link in URL.finditer(text):
+        before=text[previous:link.start()]
+        previous=link.end()
+        line=next((v.strip() for v in reversed(before.splitlines()) if v.strip()),'')
+        if PERCENT.search(line) or CONDITIONAL.search(line):
+            continue
+        line=PRICE.sub('',AT_PRICE.sub('',line)).strip(' \t.:;*-')
+        if re.search(r'[^\W\d_]',line) and 2<len(line)<=160 and not re.fullmatch(r'link',line,re.I):
+            names[link.group().rstrip('.,;!?)')]=line
+    return names
+
+
+def priced_link_rows(text, *, allow_post_link=True):
     """Bind explicit price quotes to the immediately following URL.
 
     Accept punctuation and whitespace separators, not only colon/newline rows.
     Missing prices on other links must not discard an unambiguous matched price.
     """
+    post,spans=post_link_prices(text) if allow_post_link else ({},[])
+    masked=list(text)
+    for start,end in spans:
+        masked[start:end]=' '*(end-start)
+    masked=''.join(masked)
     rows={}
     previous=0
     for link in URL.finditer(text):
-        segment=text[previous:link.start()]
+        segment=masked[previous:link.start()]
         previous=link.end()
         # Earlier paragraphs are shared prose, not this link's local price.
         local=next((line.strip() for line in reversed(segment.splitlines()) if line.strip()),'')
@@ -68,6 +108,11 @@ def priced_link_rows(text):
                 rows.pop(link.group(),None)
             else:
                 rows[link.group()]=value
+    for link,value in post.items():
+        if link in rows and rows[link]!=value:
+            del rows[link]  # Conflicting explicit quotes must not be guessed.
+        else:
+            rows[link]=value
     return rows
 
 
@@ -76,6 +121,7 @@ def split_priced_products(text, products):
     rows=priced_link_rows(text)
     if not rows:
         return products
+    explicit_names=post_link_names(text)
     result=[]
     for product in products:
         attached=product.get('affiliate_urls') or []
@@ -85,21 +131,21 @@ def split_priced_products(text, products):
                 if links(line)=={link} and '@' in line:
                     label=line.split('@',1)[0].strip(' \t-*•')
                     break
-            name=product['product_name']
+            name=explicit_names.get(link,product['product_name'])
             if label and label.casefold() not in name.casefold():
                 name=name+' — '+label
             result.append({**product,'product_name':name,'affiliate_urls':[link]})
     return result
 
 
-def product_evidence(text, products, product):
+def product_evidence(text, products, product, *, allow_post_link=True):
     attached=set(product.get('affiliate_urls') or [])
     all_links=links(text)
     if not attached or not attached <= all_links:
         return ''
     if any(attached & set(other.get('affiliate_urls') or []) for other in products if other is not product):
         return ''
-    rows=priced_link_rows(text)
+    rows=priced_link_rows(text,allow_post_link=allow_post_link)
     if len(all_links)>1 and len(attached)==1 and next(iter(attached)) in rows:
         # The header applies to every row; each price belongs only to its URL.
         first_url=URL.search(text)
@@ -226,10 +272,10 @@ def extract(text):
             'conditional_offers': conditional, 'starting_price': unique(starts), 'stated_savings': unique(savings), '_conflicts': conflicts}
 
 
-def resolve_offers(text, products, research=None):
+def resolve_offers(text, products, research=None, *, allow_post_link=True):
     output=[]
     for product in products:
-        evidence=extract(product_evidence(text,products,product))
+        evidence=extract(product_evidence(text,products,product,allow_post_link=allow_post_link))
         attached=product.get('affiliate_urls') or []
         shared=any(set(attached) & set(other.get('affiliate_urls') or []) for other in products if other is not product)
         eligible=bool(attached) and set(attached)<=links(text)

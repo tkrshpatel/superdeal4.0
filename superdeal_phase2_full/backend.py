@@ -501,7 +501,7 @@ class Backend:
                     research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
                 except ValueError:
                     research = None  # Optional old browser evidence is missing or incomplete.
-                resolved = resolve_offers(converted['response_text'], products, research)
+                resolved = resolve_offers(converted['response_text'], products, research, allow_post_link=False)
                 cached = {str(doc['_id']): item for doc,item in zip(siblings,resolved)}
                 with self._offer_fact_lock:
                     self._offer_fact_cache[key] = cached
