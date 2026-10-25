@@ -111,6 +111,7 @@ class Backend:
         self._fallback_lock = threading.Lock()
         self._offer_fact_cache = OrderedDict()
         self._deal_terms_cache = OrderedDict()
+        self._category_context_cache = OrderedDict()
         self._offer_fact_lock = threading.Lock()
 
     def setup(self):
@@ -333,6 +334,8 @@ class Backend:
             # Python, then retain the original strict publication validator.
             restored_response = restore_affiliate_urls(llm_response, converted['response_text'])
             parsed = self.validate(restored_response, converted['response_text'])
+            from category_offers import normalize_category_products
+            parsed['products'] = normalize_category_products(converted['response_text'], parsed['products'])
             from offer_evidence import split_priced_products
             parsed['products'] = split_priced_products(converted['response_text'], parsed['products'])
             parsed = self.validate(parsed, converted['response_text'])
@@ -475,6 +478,32 @@ class Backend:
                     self._deal_terms_cache.popitem(last=False)
         return cached.get(str(fact.get('_id')),fact.get('deal_terms'))
 
+    def _category_display(self, fact, fields):
+        """Recover names and shared discounts for saved category cards."""
+        raw_id=fact.get('raw_id')
+        if raw_id is None:
+            return fields
+        key=str(raw_id)
+        with self._offer_fact_lock:
+            context=self._category_context_cache.get(key)
+        if context is None:
+            converted=self.db.ek_raw.find_one({'raw_id':raw_id},{'response_text':1})
+            from category_offers import category_context
+            context=category_context((converted or {}).get('response_text',''))
+            with self._offer_fact_lock:
+                self._category_context_cache[key]=context
+                while len(self._category_context_cache)>128:
+                    self._category_context_cache.popitem(last=False)
+        attached=(fact.get('product') or {}).get('affiliate_urls') or []
+        if len(attached)!=1 or attached[0] not in context.get('names',{}):
+            return fields
+        result={**fields,'product_name':context['names'][attached[0]],'brand':context['brand']}
+        if context.get('discount') is not None:
+            facts={**fields.get('offer_facts',{}),'version':11,
+                   'discount_pct':context['discount'],'discount_kind':context['discount_kind']}
+            result.update(offer_facts=facts,discount_percentage=context['discount'])
+        return result
+
     def _offer_fields(self, fact):
         """Read old source evidence without rewriting published records."""
         from offer_evidence import resolve_offers, public_facts
@@ -510,8 +539,8 @@ class Backend:
             facts = cached.get(str(fact['_id']))
         if not facts:
             return {}
-        return {'offer_facts': public_facts(facts), 'deal_price': facts['current_price'],
-                'original_price': facts['mrp'], 'discount_percentage': facts['discount_pct']}
+        return self._category_display(fact, {'offer_facts': public_facts(facts), 'deal_price': facts['current_price'],
+                'original_price': facts['mrp'], 'discount_percentage': facts['discount_pct']})
 
     def published_offers(self, limit=100):
         """Publication gate for web/mobile: never query fact_table directly."""

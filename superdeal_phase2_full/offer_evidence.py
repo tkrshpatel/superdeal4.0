@@ -99,6 +99,10 @@ def product_evidence(text, products, product):
         return ''
     if any(attached & set(other.get('affiliate_urls') or []) for other in products if other is not product):
         return ''
+    from category_offers import category_context
+    context=category_context(text)
+    if len(attached)==1 and next(iter(attached)) in context.get('names',{}) and context.get('discount') is not None:
+        return ('Up to ' if context['discount_kind']=='up_to' else '')+str(context['discount'])+'% off'
     rows=priced_link_rows(text)
     if len(all_links)>1 and len(attached)==1 and next(iter(attached)) in rows:
         # The header applies to every row; each price belongs only to its URL.
