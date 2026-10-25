@@ -35,3 +35,17 @@ The strict public allowlist on the separate security-readiness branch will need 
 Scenario tests cover source-only percentages, missing values, qualified offers, source/browser conflicts, association, privacy, conditional arithmetic and legacy-record recovery. Real MongoDB publication testing checks that an invented model price/MRP is replaced by source facts, the exact affiliate URL survives and internal provenance is excluded from shopper output. Frontend tests exercise cards, details, filtering and HOT thresholds.
 
 Known pre-existing validation failures remain tracked in RELEASE_VALIDATION.md. Review current GitHub results before merging; no production readiness claim is implied.
+
+## Verified GitHub results
+
+Implementation revision: `d920a4ee4f768f31b7835d27f74f1acab8706239`.
+
+- Application/scenario suite: **222 passed** on Python 3.11 and 3.12.
+- Frontend: **36 passed**, production build passed.
+- Expanded MongoDB suite: **110 passed**, with the same **9 legacy-contract failures and 1 image-test collection error** already tracked in the release review.
+- New tests include actual publication of an exact-discount-only deal with invented model prices removed, strict API HOT qualification, untouched affiliate URL and private provenance exclusion.
+- The chat execution environment remains offline; these are GitHub-hosted results, not a test of the user's Windows PC or real email delivery.
+
+Evidence: [Python and MongoDB run](https://github.com/tkrshpatel/superdeal4.0/actions/runs/40187519580), [frontend run](https://github.com/tkrshpatel/superdeal4.0/actions/runs/40187519608).
+
+Local review: fetch/switch phase-offer-evidence, restart the API with the existing .env and refresh the frontend. Existing records with saved source evidence recover at read time; no ingestion replay is required. Do not merge for production until the outstanding release blockers are resolved.
