@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==7
+    assert fields['offer_facts']['version']==8
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==7
+    assert fields['offer_facts']['version']==8
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -278,3 +278,11 @@ def test_sentence_ending_period_does_not_hide_a_price(text,value):
 
 def test_incomplete_decimal_is_not_silently_truncated():
     assert resolve('Phone at 18749.999')['current_price'] is None
+
+
+@pytest.mark.parametrize('phrase',['Starts Rs.262','Starts at Rs.262','Starts from ₹262','Starting Rs.262','Start at ₹262'])
+def test_starting_price_wording_variants(phrase):
+    f=resolve("Myntra: Upto 86% Off on Roadster Men's Shirts "+phrase)
+    assert f['starting_price']==262
+    assert f['current_price'] is None
+    assert f['discount_pct']==86 and f['discount_kind']=='up_to'

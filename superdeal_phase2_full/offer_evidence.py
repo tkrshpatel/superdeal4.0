@@ -11,7 +11,7 @@ MRP = re.compile(r'\b(?:mrp|m\.r\.p\.?|original\s*price|list\s*price)\s*[:=@-]?\
 PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 AT_PRICE = re.compile(r'(?<![\w@])@\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 RUPEES = re.compile(CURRENCY+NUMBER, re.I)
-STARTING = re.compile(r'\b(?:starting\s*(?:from|at)?|from)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
+STARTING = re.compile(r'\b(?:start(?:ing|s)?\s*(?:from|at)?|from)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
 CONDITIONAL = re.compile(r'coupon|promo|cashback|effective|after|using|subscription|new\s+users?|first\s+order|\bbogo\b|\bbuy\s*\d.*\bget\s*\d|\bbank\b|\bcard\b|credit|debit|exchange|\bemi\b|\bhdfc\b|\bsbi\b|\bicici\b|\baxis\b|\bextra\b|additional|\bon\s+(?:orders?|spend)\b|minimum\s+(?:order|spend)', re.I)
 PUBLIC_KEYS = {'effective_price','starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
@@ -239,7 +239,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':7,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':8,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output
