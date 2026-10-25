@@ -9,8 +9,10 @@ from backend import Backend
 def test_all_pages_share_window_and_exclude_old_unpublished_and_future():
     client=MongoClient(os.getenv('MONGODB_URI','mongodb://127.0.0.1:27017/?replicaSet=rs0'),serverSelectionTimeoutMS=5000)
     db=client['superdeal_test_paging_'+uuid4().hex]
-    at=datetime.now(timezone.utc)
+    at=datetime.now(timezone.utc).replace(microsecond=0)
     backend=Backend(db)
+    http=None
+    thread=None
     try:
         backend.setup()
         for label,date,status,count in [
@@ -37,6 +39,31 @@ def test_all_pages_share_window_and_exclude_old_unpublished_and_future():
             assert any(n.startswith('boundary') for n in names)
             assert all(n.startswith(('recent','boundary')) for n in names)
         assert backend.legacy_search(limit=24,q='recent 136',at=at)['items'][0]['product_name']=='recent 136'
+        # Exercise the actual HTTP snapshot/continuation contract as well.
+        import threading
+        from http.server import ThreadingHTTPServer
+        from urllib.request import urlopen
+        from urllib.parse import urlencode
+        import json
+        from api import make_handler
+        http=ThreadingHTTPServer(('127.0.0.1',0),make_handler(backend,admin_token='test-only'))
+        thread=threading.Thread(target=http.serve_forever,daemon=True);thread.start()
+        offset=0;snapshot=None;http_ids=[]
+        while True:
+            params={'limit':24,'offset':offset,'sort':'newest'}
+            if snapshot:params['as_of']=snapshot
+            with urlopen(f'http://127.0.0.1:{http.server_port}/deals?'+urlencode(params),timeout=5) as response:
+                payload=json.load(response)
+            snapshot=snapshot or payload['as_of']
+            assert payload['as_of']==snapshot
+            http_ids.extend(d['id'] for d in payload['deals'])
+            if not payload['has_more']:break
+            offset=payload['next_offset']
+        # The exact boundary deal may have expired by HTTP request time;
+        # all 137 recent deals must still be reachable once each.
+        assert len(http_ids)==len(set(http_ids))>=137
     finally:
+        if http:
+            http.shutdown();thread.join(timeout=3);http.server_close()
         client.drop_database(db.name)
         client.close()
