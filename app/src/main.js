@@ -148,7 +148,8 @@ const shopperText = value => String(value ?? '').split('\n').filter(line=>!priva
 const offerLabel = value => {
   const text = shopperText(value);
   const label = text.replace(/^(?:Coupon offer|Bank offer|Additional offer|Cashback):\s*/i, '');
-  return /^Cashback:/i.test(text) && !/cashback/i.test(label) ? label+' cashback' : label;
+  if (/^Cashback:/i.test(text) && !/cashback/i.test(label)) return label+' cashback';
+  return /^(?:up to\s+)?(?:₹|Rs\.?|INR)\s*[\d,]+(?:\.\d{1,2})?$/i.test(label) ? label+' off' : label;
 };
 function supportedTerms(d) {
   const t=d.deal_terms;

@@ -274,6 +274,10 @@ test('coupon percentage label omits Coupon offer prefix in cards and details',as
 
 for (const [label, expected] of [
   ['Bank offer: 20% off','20% off'],
+  ['Coupon offer: ₹200','₹200 off'],
+  ['Bank offer: Rs 500','Rs 500 off'],
+  ['Additional offer: Up to ₹500','Up to ₹500 off'],
+  ['₹200 off','₹200 off'],
   ['Additional offer: 10% off','10% off'],
   ['Cashback: Up to 15% cashback','Up to 15% cashback'],
   ['Cashback: ₹500','₹500 cashback']
