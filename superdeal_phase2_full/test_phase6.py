@@ -28,7 +28,7 @@ def test_public_metadata_clicks_and_freshness():
         for _ in range(5):
             backend.record_affiliate_click(str(oid))
         metadata = backend.public_metadata(str(oid))
-        assert metadata['click_count'] == 5 and metadata['hot'] is True
+        assert metadata['click_count'] == 5 and metadata['hot'] is False  # Clicks alone do not establish a discount.
         legacy = _legacy_deal({'id': str(oid), 'product_name': 'Synthetic', 'affiliate_urls': ['https://example.com/x']}, metadata)
         assert legacy['last_seen_at'] is not None and legacy['click_count'] == 5
         assert legacy['affiliate_url'] == 'https://example.com/x'

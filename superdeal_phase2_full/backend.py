@@ -637,7 +637,7 @@ class Backend:
             oid = ObjectId(deal_id)
         except (InvalidId, TypeError):
             return None
-        fact = self.db.fact_table.find_one({'_id': oid}, {'raw_id': 1, 'publication_id': 1})
+        fact = self.db.fact_table.find_one({'_id': oid}, {'raw_id': 1, 'publication_id': 1, 'product': 1, 'offer_facts': 1})
         if not fact:
             return None
         status = self.db.pipeline_status.find_one({
@@ -653,8 +653,13 @@ class Backend:
 
         cutoff = now() - timedelta(hours=24)
         clicks = self.db.deal_clicks.count_documents({'deal_id': deal_id, 'clicked_at': {'$gte': cutoff}})
+        from offer_evidence import is_hot
+        evidence = self._offer_fields(fact).get('offer_facts')
+        if evidence is None:
+            product = fact.get('product') or {}
+            evidence = {'current_price': product.get('deal_price'), 'mrp': product.get('original_price')}
         return {'published_at': published_at, 'click_count': clicks,
-                'hot': clicks >= 5, 'fresh_window_hours': 24,
+                'hot': is_hot(evidence), 'fresh_window_hours': 24,
                 'fresh': bool(published_at and published_at >= cutoff)}
 
     def affiliate_destination(self, deal_id):

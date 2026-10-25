@@ -5,7 +5,7 @@ import math
 import re
 from deal_terms import links, URL
 
-NUMBER = r'((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?![\d,.])'
+NUMBER = r'((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)(?![\w,.])'
 CURRENCY = r'(?:₹\s*|(?:rs\.?|inr)\s*)'
 MRP = re.compile(r'\b(?:mrp|m\.r\.p\.?|original\s*price|list\s*price)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
@@ -125,3 +125,13 @@ def resolve_offers(text, products, research=None):
 
 def public_facts(facts):
     return {key:value for key,value in facts.items() if key in PUBLIC_KEYS}
+
+
+def is_hot(facts):
+    if facts.get('discount_kind')=='up_to':
+        return False
+    if facts.get('discount_kind')=='exact':
+        pct=number(facts.get('discount_pct'),100)
+        return pct is not None and pct>50
+    price,mrp=number(facts.get('current_price')),number(facts.get('mrp'))
+    return price is not None and mrp is not None and price<mrp/2

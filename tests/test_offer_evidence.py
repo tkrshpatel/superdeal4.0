@@ -101,3 +101,11 @@ def test_existing_fact_recovers_discount_from_saved_converted_message_without_wr
     assert fields['deal_price'] is None and fields['original_price'] is None
     assert fields['offer_facts']['discount_kind']=='exact'
     assert db.fact_table.find_one({})==before
+
+@pytest.mark.parametrize('pct,kind,expected',[(50,'exact',False),(50.1,'exact',True),(80,'up_to',False),(100,'exact',True)])
+def test_hot_uses_verified_exact_discount(pct,kind,expected):
+    from offer_evidence import is_hot
+    assert is_hot({'discount_pct':pct,'discount_kind':kind}) is expected
+
+def test_abbreviated_currency_is_not_misread_as_a_small_price():
+    assert resolve('Price ₹2k')['current_price'] is None
