@@ -118,3 +118,30 @@ def test_unconfigured_channels_are_not_published():
     backend=MagicMock();backend.db=db
     assert not process_next(backend,['telegram:1'])
     backend.ingest.assert_not_called()
+
+
+def test_monitor_keeps_healthy_channels_running_when_one_cannot_resolve(monkeypatch):
+    from superdeal_telegram_capture import monitor
+    from telethon import utils
+    monkeypatch.setattr(utils,'get_peer_id',lambda entity:-1000000-entity.id)
+    box,db=inbox()
+    class Client:
+        def __init__(self): self.handlers=[]
+        async def get_entity(self,target):
+            if target=='inaccessible': raise ValueError('not joined')
+            return SimpleNamespace(id=int(target))
+        async def get_messages(self,entity,limit): return [msg(10)]
+        def iter_messages(self,entity,**kwargs):
+            return iter([msg(11,'caption from channel '+str(entity.id))])
+        def add_event_handler(self,callback,event_filter): self.handlers.append(callback)
+        def remove_event_handler(self,callback): self.handlers.remove(callback)
+        async def run_until_disconnected(self):
+            await asyncio.sleep(.1)
+    client=Client()
+    backend=MagicMock();backend.db=db
+    asyncio.run(monitor(SimpleNamespace(client=client),backend,['1','inaccessible','2'],capture_only=True,interval=5))
+    assert db.telegram_inbox.count_documents({})==2
+    assert set(db.telegram_inbox.distinct('channel'))=={'telegram:1','telegram:2'}
+    assert client.handlers==[]
+    backend.ingest.assert_not_called()
+    backend.process.assert_not_called()
