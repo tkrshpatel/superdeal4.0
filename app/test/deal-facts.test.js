@@ -49,17 +49,17 @@ test('unrecognized retailer labels always use the discovery fallback',async()=>{
 
 test('hot uses strict unrounded discount and requires a valid price pair',async()=>{
   const {isHotDeal}=await import('../src/deal-facts.js');
-  assert.equal(isHotDeal({current_price:499,mrp:1000}),true);
+  assert.equal(isHotDeal({current_price:249,mrp:1000,last_seen_at:new Date().toISOString()}),true);
   assert.equal(isHotDeal({current_price:500,mrp:1000}),false);
   assert.equal(isHotDeal({current_price:501,mrp:1000}),false);
   assert.equal(isHotDeal({current_price:200,discount_pct:80}),false);
 });
 
 const sourceFacts=(overrides={})=>({offer_facts:{version:1,current_price:null,mrp:null,discount_pct:null,discount_kind:null,conditional_offers:[],...overrides}});
-test('exact source discount survives absent price/MRP and qualifies for HOT above 50',async()=>{
+test('exact source discount survives absent price/MRP and qualifies for HOT above 75',async()=>{
   const {isHotDeal}=await import('../src/deal-facts.js');
-  const d=sourceFacts({discount_pct:60,discount_kind:'exact'});
-  assert.deepEqual(priceFacts(d),{current:null,mrp:null,saving:null,discount:60});
+  const d={...sourceFacts({discount_pct:80,discount_kind:'exact'}),last_seen_at:new Date().toISOString()};
+  assert.deepEqual(priceFacts(d),{current:null,mrp:null,saving:null,discount:80});
   assert.equal(isHotDeal(d),true);
   assert.equal(isHotDeal(sourceFacts({discount_pct:50,discount_kind:'exact'})),false);
 });
@@ -81,4 +81,17 @@ test('conditional discounts are never added to calculated base discounts',async(
 test('explicit monetary saving does not manufacture an original price',()=>{
   const f=priceFacts(sourceFacts({current_price:1000,stated_savings:500}));
   assert.deepEqual(f,{current:1000,mrp:null,saving:500,discount:null});
+});
+
+test('HOT requires a recent known timestamp and strictly more than 75 percent',async()=>{
+  const {isHotDeal}=await import('../src/deal-facts.js');
+  const base={current_price:249,mrp:1000};
+  const check=(minutes,extra={})=>isHotDeal({...base,last_seen_at:new Date(Date.now()-minutes*60000).toISOString(),...extra});
+  assert.equal(check(1),true);
+  assert.equal(check(29),true);
+  assert.equal(check(31),false);
+  assert.equal(check(-1),false);
+  assert.equal(check(1,{current_price:250}),false);
+  assert.equal(check(1,{current_price:251}),false);
+  assert.equal(isHotDeal(base),false);
 });

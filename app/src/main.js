@@ -334,7 +334,7 @@ function showDetail(id) {
       <div class="eyebrow">${esc(merchant)} · ${esc(offerType(d))}</div>
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
-      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT · Over 50% off</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
+      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT · New in 30 minutes · Over 75% off</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
       ${termsMarkup(d)}
       ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <button class="notify-product" type="button" data-notify-product="${esc(title)}">Get notified about this product</button>

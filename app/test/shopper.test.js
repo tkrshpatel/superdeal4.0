@@ -132,10 +132,10 @@ test('old coupon excerpts render FT without exposing providers or channel metada
 });
 
 
-test('hot badge, count and filter use discounts above 50 percent',async()=>{
+test('hot badge, count and filter use fresh discounts above 75 percent',async()=>{
   const dom=await setup(), w=dom.window, d=w.document;
   w.fetch=async()=>({ok:true,json:async()=>({deals:[
-    {id:'hot',product_name:'Hot product',merchant:'Amazon',current_price:499,mrp:1000},
+    {id:'hot',product_name:'Hot product',merchant:'Amazon',current_price:249,mrp:1000,last_seen_at:new Date().toISOString()},
     {id:'half',product_name:'Half price',merchant:'Amazon',current_price:500,mrp:1000,click_count:100},
     {id:'missing',product_name:'Unknown saving',merchant:'Amazon',current_price:299,discount_pct:90}
   ]})});
@@ -228,7 +228,7 @@ test('cards/details preserve exact, up-to and conditional discount distinctions'
   ]})});
   d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
   const cards=d.querySelectorAll('.deal-card');
-  assert.match(cards[0].textContent,/60% off/);assert.match(cards[0].textContent,/HOT/);
+  assert.match(cards[0].textContent,/60% off/);assert.doesNotMatch(cards[0].textContent,/HOT/);
   assert.equal(cards[0].querySelector('s'),null);
   assert.match(cards[1].textContent,/Up to 80% off/);assert.doesNotMatch(cards[1].textContent,/HOT/);
   d.querySelector('[data-filter=discount]').click();
