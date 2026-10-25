@@ -110,6 +110,7 @@ class Backend:
         self.fallback_log_path = pathlib.Path(os.getenv('SUPERDEAL_FALLBACK_LOG', 'data/superdeal_fallback_errors.jsonl'))
         self._fallback_lock = threading.Lock()
         self._offer_fact_cache = OrderedDict()
+        self._deal_terms_cache = OrderedDict()
         self._offer_fact_lock = threading.Lock()
 
     def setup(self):
@@ -452,6 +453,28 @@ class Backend:
             return 0
 
 
+    def _public_deal_terms(self, fact):
+        """Recover shared source terms for old cards without changing prices."""
+        raw_id,publication=fact.get('raw_id'),fact.get('publication_id')
+        if raw_id is None or not publication:
+            return fact.get('deal_terms')
+        key=(str(raw_id),str(publication))
+        with self._offer_fact_lock:
+            cached=self._deal_terms_cache.get(key)
+        if cached is None:
+            converted=self.db.ek_raw.find_one({'raw_id':raw_id},{'response_text':1})
+            if not converted or not converted.get('response_text'):
+                return fact.get('deal_terms')
+            siblings=list(self.db.fact_table.find({'raw_id':raw_id,'publication_id':publication},{'product':1}).sort('offer_index',1))
+            from deal_terms import extract_deal_terms
+            terms=extract_deal_terms(converted['response_text'],[doc['product'] for doc in siblings])
+            cached={str(doc['_id']):term for doc,term in zip(siblings,terms)}
+            with self._offer_fact_lock:
+                self._deal_terms_cache[key]=cached
+                while len(self._deal_terms_cache)>128:
+                    self._deal_terms_cache.popitem(last=False)
+        return cached.get(str(fact.get('_id')),fact.get('deal_terms'))
+
     def _offer_fields(self, fact):
         """Read old source evidence without rewriting published records."""
         from offer_evidence import resolve_offers, public_facts
@@ -503,7 +526,7 @@ class Backend:
                 self.log(raw_id, 'PUBLICATION', 'ERROR', 'PUBLICATION_INTEGRITY_FAILED')
                 continue
             for fact in facts:
-                results.append({'id': str(fact['_id']), **fact['product'], **self._offer_fields(fact), 'deal_terms': fact.get('deal_terms'), 'image_url': (fact.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (fact.get('image_enrichment') or {}).get('status')})
+                results.append({'id': str(fact['_id']), **fact['product'], **self._offer_fields(fact), 'deal_terms': self._public_deal_terms(fact), 'image_url': (fact.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (fact.get('image_enrichment') or {}).get('status')})
                 if len(results) >= limit:
                     return results
         return results
@@ -539,7 +562,7 @@ class Backend:
             raise ValueError('Invalid pagination')
         docs = list(self.db.fact_table.aggregate(
             self._published_pipeline(offset=offset, limit=limit + 1)))
-        items = [{'id': str(doc['_id']), **doc['product'], **self._offer_fields(doc), 'deal_terms': doc.get('deal_terms'), 'image_url': (doc.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (doc.get('image_enrichment') or {}).get('status')} for doc in docs[:limit]]
+        items = [{'id': str(doc['_id']), **doc['product'], **self._offer_fields(doc), 'deal_terms': self._public_deal_terms(doc), 'image_url': (doc.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (doc.get('image_enrichment') or {}).get('status')} for doc in docs[:limit]]
         return {'items': items, 'limit': limit, 'offset': offset,
                 'has_more': len(docs) > limit}
 
@@ -597,14 +620,14 @@ class Backend:
                 {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1, 'offer_facts': 1, 'raw_id': 1, 'publication_id': 1}},
             ])
             docs = list(self.db.fact_table.aggregate(pipeline))
-            return {'items': [{'id': str(d['_id']), **d['product'], **self._offer_fields(d), 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]],
+            return {'items': [{'id': str(d['_id']), **d['product'], **self._offer_fields(d), 'deal_terms': self._public_deal_terms(d), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]],
                     'has_more': len(docs) > limit, 'as_of': at.isoformat(), 'next_offset': offset + len(docs[:limit]) if len(docs) > limit else None}
         order = {'newest': {'_publication.published_at': -1, '_id': -1},
                  'price_asc': {'product.deal_price': 1, '_id': -1},
                  'price_desc': {'product.deal_price': -1, '_id': -1}}[sort]
         pipeline.extend([{'$sort': order}, {'$skip': offset}, {'$limit': limit + 1}, {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1, 'offer_facts': 1, 'raw_id': 1, 'publication_id': 1}}])
         docs = list(self.db.fact_table.aggregate(pipeline))
-        return {'items': [{'id': str(d['_id']), **d['product'], **self._offer_fields(d), 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit, 'as_of': at.isoformat(), 'next_offset': offset + len(docs[:limit]) if len(docs) > limit else None}
+        return {'items': [{'id': str(d['_id']), **d['product'], **self._offer_fields(d), 'deal_terms': self._public_deal_terms(d), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit, 'as_of': at.isoformat(), 'next_offset': offset + len(docs[:limit]) if len(docs) > limit else None}
 
     def deal_window_counts(self, *, at=None):
         """Count all committed deal facts, independently of feed pagination/filters."""
@@ -692,7 +715,7 @@ class Backend:
         except (InvalidId, TypeError):
             return None
         docs = list(self.db.fact_table.aggregate(self._published_pipeline(limit=1, fact_id=oid)))
-        return {'id': str(docs[0]['_id']), **docs[0]['product'], **self._offer_fields(docs[0]), 'deal_terms': docs[0].get('deal_terms'), 'image_url': (docs[0].get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (docs[0].get('image_enrichment') or {}).get('status')} if docs else None
+        return {'id': str(docs[0]['_id']), **docs[0]['product'], **self._offer_fields(docs[0]), 'deal_terms': self._public_deal_terms(docs[0]), 'image_url': (docs[0].get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (docs[0].get('image_enrichment') or {}).get('status')} if docs else None
 
 
 def connect():

@@ -2,7 +2,7 @@
 
 No LLM calls, price arithmetic or affiliate URL rewriting. Unclear associations
 are omitted. Multiple-product messages require a self-contained paragraph with
-exactly one unique EarnKaro URL; detached/global instructions are not assigned.
+exactly one unique EarnKaro URL; explicit shared headline instructions apply to every product.
 """
 import re
 
@@ -22,6 +22,13 @@ def extract_deal_terms(converted_text, products):
     """Return a separate immutable terms object per product, or None."""
     all_links = links(converted_text)
     paragraphs = re.split(r'\n\s*\n', converted_text)
+    # A detached paragraph before the first product block is a shared header.
+    first=URL.search(converted_text)
+    prefix=converted_text[:first.start()] if first else ''
+    blocks=re.split(r'\n\s*\n',prefix)
+    header='\n'.join(blocks[:-1])
+    shared='\n'.join(line for line in header.splitlines()
+                     if SIGNAL.search(line) and not links(line))
     output = []
     for product in products:
         attached = set(product.get('affiliate_urls') or [])
@@ -39,6 +46,7 @@ def extract_deal_terms(converted_text, products):
         # One URL shared by several parsed products does not prove code eligibility.
         if any(attached & set(other.get('affiliate_urls') or []) for other in products if other is not product):
             evidence = ''
+        evidence='\n'.join(part for part in (shared,evidence) if part)
         codes, steps, conditions, excerpts = [], [], [], []
         has_bank_offer = False
         has_coupon = False
