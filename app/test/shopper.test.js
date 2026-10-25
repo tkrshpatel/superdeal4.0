@@ -239,3 +239,19 @@ test('cards/details preserve exact, up-to and conditional discount distinctions'
   assert.doesNotMatch(d.querySelector('#detail').textContent,/earnkaro|telegram/i);
   dom.window.close();
 });
+
+test('Eha headline shows Up to 52% off and From price alongside coupon badge',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'eha',product_name:'Eha Pots & Plants',
+    deal_terms:{has_coupon:true,instructions:['Apply coupon']},
+    offer_facts:{version:2,current_price:null,mrp:null,discount_pct:52,discount_kind:'up_to',starting_price:419,conditional_offers:[]}}]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
+  const card=d.querySelector('.deal-card');
+  assert.match(card.querySelector('.discount-badge').textContent,/Up to 52% off/);
+  assert.match(card.textContent,/From ₹419/);
+  assert.match(card.textContent,/Coupon available/);
+  assert.doesNotMatch(card.textContent,/HOT/);
+  card.querySelector('.title-button').click();
+  assert.match(d.querySelector('#detail').textContent,/Apply coupon/);
+  dom.window.close();
+});

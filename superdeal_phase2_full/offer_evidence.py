@@ -10,9 +10,10 @@ CURRENCY = r'(?:₹\s*|(?:rs\.?|inr)\s*)'
 MRP = re.compile(r'\b(?:mrp|m\.r\.p\.?|original\s*price|list\s*price)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 RUPEES = re.compile(CURRENCY+NUMBER, re.I)
+STARTING = re.compile(r'\b(?:starting\s*(?:from|at)?|from)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
 CONDITIONAL = re.compile(r'coupon|promo|cashback|effective|after|using|subscription|new\s+users?|first\s+order|\bbogo\b|\bbuy\s*\d.*\bget\s*\d|\bbank\b|\bcard\b|credit|debit|exchange|\bemi\b|\bhdfc\b|\bsbi\b|\bicici\b|\baxis\b|\bextra\b|additional|\bon\s+(?:orders?|spend)\b|minimum\s+(?:order|spend)', re.I)
-PUBLIC_KEYS = {'stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
+PUBLIC_KEYS = {'starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
 
 
 def number(value, maximum=100000000):
@@ -40,8 +41,10 @@ def product_evidence(text, products, product):
 
 
 def extract(text):
-    prices, mrps, discounts, conditional, savings = [], [], [], [], []
-    for raw in re.split(r'[\n;|]+', text):
+    prices, mrps, discounts, conditional, savings, starts = [], [], [], [], [], []
+    text = URL.sub('', text)
+    # A separate "+ Apply Coupon" instruction does not qualify every prior headline.
+    for raw in re.split(r'[\n;|]+|\s*\+\s*(?=(?:apply|use|collect|extra|additional|bank)\b)', text, flags=re.I):
         line = URL.sub('', raw).strip()
         if not line:
             continue
@@ -76,12 +79,15 @@ def extract(text):
                             conditional.append(item)
             continue
         foreign = bool(re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b', line, re.I))
+        for match in ([] if foreign else STARTING.finditer(line)):
+            value = number(float(match[1].replace(',', '')))
+            if value: starts.append(value)
         for match in ([] if foreign else MRP.finditer(line)):
             value = number(float(match[1].replace(',', '')))
             if value:
                 mrps.append(value)
         # Keep original-price amounts out of selling-price extraction.
-        clean = '' if foreign else MRP.sub('', line)
+        clean = '' if foreign else STARTING.sub('', MRP.sub('', line))
         found = list(PRICE.finditer(clean))
         if not found and not re.search(r'save|saving|discount|\boff\b', clean, re.I):
             found = list(RUPEES.finditer(clean))
@@ -110,7 +116,7 @@ def extract(text):
         if len(set(values)) > 1:
             conflicts.append(code)
     return {'current_price': unique(prices), 'mrp': unique(mrps), 'discount': unique(discounts),
-            'conditional_offers': conditional, 'stated_savings': unique(savings), '_conflicts': conflicts}
+            'conditional_offers': conditional, 'starting_price': unique(starts), 'stated_savings': unique(savings), '_conflicts': conflicts}
 
 
 def resolve_offers(text, products, research=None):
@@ -150,8 +156,8 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':1,'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
-                       'conditional_offers':evidence['conditional_offers'],'stated_savings':evidence['stated_savings'],
+        output.append({'version':2,'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+                       'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output
 

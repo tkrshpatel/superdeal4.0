@@ -137,3 +137,33 @@ def test_conditional_rupee_benefit_stays_separate():
 def test_indian_currency_grouping_is_preserved():
     f=resolve('Price ₹1,29,999; MRP ₹1,49,999')
     assert f['current_price']==129999 and f['mrp']==149999
+
+
+@pytest.mark.parametrize('suffix',[' + Apply Coupon',' + Use code SAVE',' + Collect coupon',' + Extra 10% off with card'])
+def test_headline_discount_is_not_swallowed_by_a_separate_coupon_clause(suffix):
+    f=resolve('Amazon : Up to 52% Off on Eha Pots & Plants Starting @419'+suffix)
+    assert f['discount_pct']==52 and f['discount_kind']=='up_to'
+    assert f['starting_price']==419 and f['current_price'] is None
+    from offer_evidence import is_hot
+    assert not is_hot(f)
+
+def test_direct_coupon_discount_is_still_conditional():
+    f=resolve('Apply coupon for up to 52% off')
+    assert f['discount_pct'] is None
+    assert f['conditional_offers'][0]['label']=='Coupon offer: Up to 52% off'
+
+def test_starting_price_never_becomes_exact_price():
+    f=resolve('Starting at ₹419')
+    assert f['starting_price']==419 and f['current_price'] is None
+
+def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
+    db=mongomock.MongoClient().db
+    raw,oid=ObjectId(),ObjectId()
+    db.ek_raw.insert_one({'raw_id':raw,'response_text':'Amazon : Up to 52% Off on Eha Pots & Plants Starting @419 + Apply Coupon\n'+LINK})
+    doc={'_id':oid,'raw_id':raw,'publication_id':'pub','offer_index':0,'product':product(),
+         'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
+    db.fact_table.insert_one(doc)
+    fields=Backend(db)._offer_fields(doc)
+    assert fields['offer_facts']['version']==2
+    assert fields['offer_facts']['discount_pct']==52
+    assert db.fact_table.find_one({})['offer_facts']['version']==1

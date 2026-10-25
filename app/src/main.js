@@ -138,7 +138,9 @@ function discountLabel(d) {
 }
 function priceMarkup(d) {
   const p = priceFacts(d);
-  return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${money(p.current)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : (p.saving!==null?`<span class="saving">Save ${money(p.saving)}</span>`:'')+(p.discount!==null?`<span class="saving">${esc(discountLabel(d))}</span>`:'')}</div>`;
+  const from=Number(d.offer_facts?.starting_price);
+  const displayed=p.current===null && Number.isFinite(from) && from>0 ? 'From '+money(from) : money(p.current);
+  return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${esc(displayed)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : (p.saving!==null?`<span class="saving">Save ${money(p.saving)}</span>`:'')+(p.discount!==null?`<span class="saving">${esc(discountLabel(d))}</span>`:'')}</div>`;
 }
 // Defence in depth for old APIs and cached records: never render source metadata.
 const privateText = /earn\s*karo|telegram|(?:https?:\/\/)?(?:t\.me|telegram\.me)\/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research/i;
@@ -180,10 +182,11 @@ const age = value => {
 function card(d) {
   const title = displayTitle(d), merchant = displayMerchant(d), p = priceFacts(d);
   const saved = state.saved.has(String(d.id));
+  const conditional = Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.find(o=>typeof o?.label==='string' && /%|₹/.test(o.label)):null;
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : ''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
+      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : conditional?`<span class="discount-badge">${esc(shopperText(conditional.label))}</span>`:''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>
