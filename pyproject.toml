@@ -11,6 +11,7 @@ dependencies = [
     "Telethon~=1.45.0",
     "requests>=2.31,<3",
     "playwright>=1.55,<2",
+    "pymongo>=4.6,<5",
 ]
 
 [project.scripts]
@@ -19,9 +20,9 @@ superdeal-worker = "superdeal.runner:main"
 superdeal-telegram-login = "superdeal.telegram_login:main"
 
 [project.optional-dependencies]
-test = ["pytest>=8,<9"]
+test = ["pytest>=8,<9", "mongomock>=4.3,<5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = [".", "src", "superdeal_phase2_full"]
 addopts = "-q"

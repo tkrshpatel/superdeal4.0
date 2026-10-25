@@ -6,12 +6,20 @@ on:
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.11", "3.12"]
+    env:
+      MONGODB_URI: mongodb://127.0.0.1:27017/?replicaSet=rs0
+      SUPERDEAL_EMAIL_MODE: dry-run
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,4 +28,24 @@ jobs:
           cache: pip
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[test]"
-      - run: pytest
+      - name: Start isolated MongoDB replica set
+        run: |
+          docker run -d --name validation-mongo --network host mongo:7 --replSet rs0 --bind_ip 127.0.0.1
+          for attempt in $(seq 1 30); do
+            if docker exec validation-mongo mongosh --quiet --eval 'db.adminCommand({ping:1})' >/dev/null 2>&1; then break; fi
+            sleep 1
+          done
+          docker exec validation-mongo mongosh --quiet --eval 'rs.initiate({_id:"rs0",members:[{_id:0,host:"127.0.0.1:27017"}]})'
+          for attempt in $(seq 1 30); do
+            if docker exec validation-mongo mongosh --quiet --eval 'if (!db.hello().isWritablePrimary) { quit(1); }' >/dev/null 2>&1; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Application regression tests
+        run: python -m pytest tests -ra
+      - name: MongoDB backend, HTTP, alerts and transaction tests
+        if: ${{ !cancelled() }}
+        run: python -m pytest --import-mode=importlib superdeal_phase2_full --ignore=superdeal_phase2_full/test_mistral_live.py -ra
+      - name: Stop isolated MongoDB
+        if: ${{ always() }}
+        run: docker rm -f validation-mongo
