@@ -111,7 +111,14 @@ app.innerHTML = `
   <section id="deals" class="deal-grid" aria-live="polite"></section>
   <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="filter" type="button">Show more deals</button></div>
 </main>
-<footer><span>SuperDeal · Discover. Save. Shop.</span></footer>
+<footer class="site-footer" aria-label="Copyright and disclaimer">
+  <div class="footer-heading">
+    <span>© 2026 SuperDeals. All rights reserved.</span>
+    <a href="mailto:superdeals.helpdesk@gmail.com">Contact: superdeals.helpdesk@gmail.com</a>
+  </div>
+  <p><strong>Disclaimer:</strong> SuperDeals shares deal information and links to third-party retailers. Prices, availability, discounts, coupon eligibility and delivery charges may change. Confirm the final price and offer conditions on the retailer’s website before buying. Purchases, payments, delivery, returns and warranties are handled by the retailer.</p>
+  <p>Product names, trademarks and images belong to their respective owners.</p>
+</footer>
 <div id="toast" class="toast" role="status"></div>
 <div id="detail" class="detail hidden"></div>
 `;
