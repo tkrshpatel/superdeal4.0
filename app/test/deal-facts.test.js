@@ -77,3 +77,8 @@ test('conditional discounts are never added to calculated base discounts',async(
   const d=sourceFacts({current_price:500,mrp:1000,discount_pct:50,discount_kind:'calculated',conditional_offers:[{label:'Bank offer: 10% off'}]});
   assert.equal(priceFacts(d).discount,50);assert.equal(priceFacts(d).saving,500);assert.equal(isHotDeal(d),false);
 });
+
+test('explicit monetary saving does not manufacture an original price',()=>{
+  const f=priceFacts(sourceFacts({current_price:1000,stated_savings:500}));
+  assert.deepEqual(f,{current:1000,mrp:null,saving:500,discount:null});
+});

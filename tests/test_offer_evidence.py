@@ -118,3 +118,18 @@ def test_advertised_up_to_remains_separate_when_exact_price_pair_is_available():
 @pytest.mark.parametrize('text',['Effective price ₹499','Price ₹499 after cashback','USD price 499','Price $499','Buy 1 get 1 free'])
 def test_conditional_or_foreign_prices_are_not_base_inr_values(text):
     assert resolve(text)['current_price'] is None
+
+@pytest.mark.parametrize('text',['Save ₹500','₹500 off','Savings Rs. 500'])
+def test_stated_savings_never_become_a_selling_price(text):
+    f=resolve(text)
+    assert f['current_price'] is None and f['mrp'] is None
+    assert f['stated_savings']==500
+
+def test_source_price_and_stated_savings_do_not_invent_mrp():
+    f=resolve('Price ₹1000; Save ₹500')
+    assert (f['current_price'],f['mrp'],f['stated_savings'])==(1000,None,500)
+
+def test_conditional_rupee_benefit_stays_separate():
+    f=resolve('HDFC card ₹500 off')
+    assert f['current_price'] is None and f['stated_savings'] is None
+    assert f['conditional_offers'][0]['label']=='Bank offer: ₹500'

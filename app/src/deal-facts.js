@@ -6,7 +6,7 @@ export function priceFacts(d) {
   const original=f?f.mrp:d.mrp;
   const mrp=validPrice(original)&&current!==null&&Number(original)>current?Number(original):null;
   const stated=f&&['exact','up_to'].includes(f.discount_kind)&&validPrice(f.discount_pct)&&Number(f.discount_pct)<=100?Number(f.discount_pct):null;
-  return {current,mrp,saving:mrp===null?null:mrp-current,discount:stated??(mrp===null?null:Math.round((mrp-current)*100/mrp))};
+  return {current,mrp,saving:mrp===null?(f&&validPrice(f.stated_savings)?Number(f.stated_savings):null):mrp-current,discount:stated??(mrp===null?null:Math.round((mrp-current)*100/mrp))};
 }
 
 export function isHotDeal(d) {
