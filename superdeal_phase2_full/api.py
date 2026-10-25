@@ -4,6 +4,7 @@ from __future__ import annotations
 import hmac
 import json
 import os
+from datetime import datetime, timezone, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlsplit
 
@@ -76,7 +77,16 @@ def make_handler(backend, *, admin_token=None):
                 # Read-only legacy web contract. This adapter does not invent click counts,
                 # freshness, price verification, or historical observations.
                 if url.path == '/deals':
-                    limit = _integer(params, 'limit', 50, 100)
+                    limit = _integer(params, 'limit', 48, 100)
+                    offset = _integer(params, 'offset', 0, 2147483647)
+                    snapshot = None
+                    if 'as_of' in params:
+                        if len(params['as_of']) != 1:
+                            raise ValueError('Invalid snapshot')
+                        snapshot = datetime.fromisoformat(params['as_of'][0].replace('Z', '+00:00'))
+                        current = datetime.now(timezone.utc)
+                        if snapshot.tzinfo is None or not current-timedelta(minutes=10) <= snapshot <= current:
+                            raise ValueError('Expired pagination snapshot; refresh the feed')
                     q = params.get('q', [None])[0]
                     merchant = params.get('merchant', [None])[0]
                     min_price = _integer(params, 'min_price', 0, 1000000000) if 'min_price' in params else None
@@ -84,16 +94,19 @@ def make_handler(backend, *, admin_token=None):
                     sort = params.get('sort', ['newest'])
                     if len(sort) != 1: raise ValueError('sort must be specified once')
                     if hasattr(backend, 'legacy_search'):
+                        paging = {}
+                        if 'offset' in params: paging['offset'] = offset
+                        if snapshot is not None: paging['at'] = snapshot
                         page = backend.legacy_search(limit=limit, q=q, merchant=merchant,
-                                                     min_price=min_price, max_price=max_price, sort=sort[0])
+                                                     min_price=min_price, max_price=max_price, sort=sort[0], **paging)
                     else:
                         # Existing lightweight test stubs do not implement searching.
                         if set(params) & {'q', 'merchant', 'min_price', 'max_price', 'sort'}:
                             return self._send(400, {'error': 'unsupported_legacy_filters'})
-                        page = backend.published_page(limit=limit, offset=0)
+                        page = backend.published_page(limit=limit, offset=offset)
                     return self._send(200, {'deals': [_legacy_deal(x, backend.public_metadata(x['id']) if hasattr(backend, 'public_metadata') else None) for x in page['items']],
                                             'counts': backend.deal_window_counts() if hasattr(backend, 'deal_window_counts') else None,
-                                            'fresh_window_hours': 24 if hasattr(backend, 'public_metadata') else None, 'has_more': page['has_more']})
+                                            'fresh_window_hours': 24 if hasattr(backend, 'public_metadata') else None, 'has_more': page['has_more'], 'as_of': page.get('as_of'), 'next_offset': page.get('next_offset')})
                 if url.path.startswith('/deals/') and url.path.endswith('/price-history'):
                     return self._send(501, {'error': 'price_history_not_implemented', 'detail': 'No independent price observations have been collected'})
                 if url.path.startswith('/deals/'):

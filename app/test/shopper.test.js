@@ -18,6 +18,7 @@ async function setup(fail=false) {
   w.Capacitor = {isNativePlatform:()=>false};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
   w.open = url => {w.lastOpened=url;};
+  w.eval(fs.readFileSync('src/deal-feed.js','utf8').replace('export async function', 'async function'));
   w.eval(fs.readFileSync('src/deal-alerts.js','utf8').replace('export function', 'function'));
   w.eval(fs.readFileSync('src/main.js','utf8').replace(/^import .*;\n/gm,''));
   await new Promise(resolve=>setTimeout(resolve,0));
@@ -194,5 +195,26 @@ test('store picker supports search, multiple selections, removable chips and res
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(d.querySelector('#selected-stores').hidden,true);
   assert.match(d.querySelector('#store-summary').textContent,/All/);
+  dom.window.close();
+});
+
+test('grid pagination renders 24 at a time and search reaches beyond the first 100',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  const offers=Array.from({length:137},(_,i)=>({id:'page'+i,product_name:i===136?'Unique distant product':'Item '+i,merchant:'Amazon'}));
+  w.fetch=async url=>{
+    const q=new URL(url,'https://superdeal.example').searchParams;
+    const offset=Number(q.get('offset')||0),limit=Number(q.get('limit'));
+    return {ok:true,json:async()=>({deals:offers.slice(offset,offset+limit),has_more:offset+limit<offers.length,next_offset:offset+limit,as_of:new Date().toISOString()})};
+  };
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelectorAll('.deal-card').length,24);
+  d.querySelector('#load-more-deals').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,48);
+  const search=d.querySelector('#search');
+  search.value='Unique distant';search.dispatchEvent(new w.Event('input'));
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  assert.match(d.querySelector('.deal-card').textContent,/Unique distant product/);
+  assert.equal(d.querySelector('#feed-pagination').hidden,true);
   dom.window.close();
 });

@@ -1,3 +1,4 @@
+import { fetchDealWindow } from './deal-feed.js';
 import { mountDealAlerts } from './deal-alerts.js';
 import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
 import './style.css';
@@ -35,6 +36,7 @@ const state = {
   query: '',
   loading: false,
   counts: null,
+  visibleCount: 24,
   merchants: new Set(),
 };
 try {
@@ -107,6 +109,7 @@ app.innerHTML = `
 
   <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
+  <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="filter" type="button">Show more deals</button></div>
 </main>
 <footer><span>SuperDeal · Discover. Save. Shop.</span></footer>
 <div id="toast" class="toast" role="status"></div>
@@ -200,7 +203,9 @@ function renderStoreFilters() {
   selected.innerHTML=[...state.merchants].map(name=>`<button class="selected-store" data-remove-store="${esc(name)}" aria-label="Remove ${esc(name)} filter">${esc(name)} <span aria-hidden="true">×</span></button>`).join('')+(state.merchants.size?'<button id="clear-selected-stores" type="button">Clear all stores</button>':'');
 }
 
-function render(list) {
+function render(list, {keepPage = false} = {}) {
+  if (!keepPage) state.visibleCount = 24;
+  document.querySelector('#feed-pagination').hidden = list.length <= state.visibleCount;
   renderStoreFilters();
   const counts=state.counts;
   freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
@@ -209,7 +214,7 @@ function render(list) {
     dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
     return;
   }
-  dealsEl.innerHTML = list.map(card).join('');
+  dealsEl.innerHTML = list.slice(0, state.visibleCount).map(card).join('');
   applyImageFallbacks(dealsEl);
 }
 
@@ -241,14 +246,14 @@ function localFilter(list) {
   return result;
 }
 
+let feedRequest = 0;
 async function load(sort = sortEl.value) {
+  const request = ++feedRequest;
   state.loading = true;
   dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
   try {
-    const params = new URLSearchParams({limit:'100', sort});
-    const response = await fetch(API(`/deals?${params}`), {cache:'no-store'});
-    if (!response.ok) throw new Error('API unavailable');
-    const payload = await response.json();
+    const payload = await fetchDealWindow(API, sort);
+    if (request !== feedRequest) return;
     state.deals = payload.deals || [];
     const counts=payload.counts;
     state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
@@ -263,10 +268,12 @@ async function load(sort = sortEl.value) {
     }
     render(localFilter(state.deals));
   } catch {
+    if (request !== feedRequest) return;
+    document.querySelector('#feed-pagination').hidden = true;
     dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
     state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
   } finally {
-    state.loading = false;
+    if (request === feedRequest) state.loading = false;
   }
 }
 
@@ -375,6 +382,14 @@ document.querySelector('#merchant-filter').addEventListener('change',e=>{
 document.querySelector('#category-filter').addEventListener('change',()=>render(localFilter(state.deals)));
 sortEl.addEventListener('change', () => load(sortEl.value));
 document.querySelectorAll('.filter').forEach(b => b.addEventListener('click', () => setFilter(b.dataset.filter)));
+
+document.querySelector('#load-more-deals').addEventListener('click', () => {
+  const before = dealsEl.querySelectorAll('.deal-card').length;
+  state.visibleCount += 24;
+  render(localFilter(state.deals), {keepPage:true});
+  const next = dealsEl.querySelectorAll('.title-button')[before];
+  next?.focus();
+});
 
 dealsEl.addEventListener('click', e => {
   if (e.target.closest('[data-retry]')) { load(); return; }

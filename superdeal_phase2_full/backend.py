@@ -488,7 +488,7 @@ class Backend:
         return {'items': items, 'limit': limit, 'offset': offset,
                 'has_more': len(docs) > limit}
 
-    def legacy_search(self, *, limit=50, q=None, merchant=None, min_price=None, max_price=None, sort='newest'):
+    def legacy_search(self, *, limit=50, q=None, merchant=None, min_price=None, max_price=None, sort='newest', offset=0, at=None):
         """Publication-gated server-side legacy search; unknown metadata stays unavailable."""
         if sort not in ('newest', 'price_asc', 'price_desc', 'popular'):
             raise ValueError('Invalid sort')
@@ -496,10 +496,12 @@ class Backend:
             raise ValueError('Invalid price range')
         if max_price is not None and max_price < 0:
             raise ValueError('Invalid price range')
+        if not 1 <= limit <= 100 or not 0 <= offset <= 2147483647:
+            raise ValueError('Invalid pagination')
         pipeline = self._published_pipeline(limit=100000)
         # Apply filters before sorting and limiting; never scan/limit results in Python.
         pipeline = [x for x in pipeline if '$limit' not in x and '$sort' not in x and '$project' not in x]
-        at = now()
+        at = at or now()
         criteria = [{'_publication.published_at': {
             '$gte': at - timedelta(hours=24), '$lte': at}}]
         if q:
@@ -517,7 +519,7 @@ class Backend:
         if sort == 'popular':
             # Rank by observed /go clicks in the last 24 hours only.
             # Do not claim this represents unobserved or historical traffic.
-            cutoff = now() - timedelta(hours=24)
+            cutoff = at - timedelta(hours=24)
             pipeline.extend([
                 {'$addFields': {'_deal_id_string': {'$toString': '$_id'}}},
                 {'$lookup': {
@@ -527,6 +529,7 @@ class Backend:
                         {'$match': {'$expr': {'$and': [
                             {'$eq': ['$deal_id', '$$deal_id']},
                             {'$gte': ['$clicked_at', cutoff]},
+                            {'$lte': ['$clicked_at', at]},
                         ]}}},
                         {'$count': 'count'},
                     ],
@@ -534,18 +537,19 @@ class Backend:
                 }},
                 {'$addFields': {'_click_count': {'$ifNull': [{'$arrayElemAt': ['$_clicks.count', 0]}, 0]}}},
                 {'$sort': {'_click_count': -1, '_publication.published_at': -1, '_id': -1}},
+                {'$skip': offset},
                 {'$limit': limit + 1},
                 {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1}},
             ])
             docs = list(self.db.fact_table.aggregate(pipeline))
             return {'items': [{'id': str(d['_id']), **d['product'], 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]],
-                    'has_more': len(docs) > limit}
+                    'has_more': len(docs) > limit, 'as_of': at.isoformat(), 'next_offset': offset + len(docs[:limit]) if len(docs) > limit else None}
         order = {'newest': {'_publication.published_at': -1, '_id': -1},
                  'price_asc': {'product.deal_price': 1, '_id': -1},
                  'price_desc': {'product.deal_price': -1, '_id': -1}}[sort]
-        pipeline.extend([{'$sort': order}, {'$limit': limit + 1}, {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1}}])
+        pipeline.extend([{'$sort': order}, {'$skip': offset}, {'$limit': limit + 1}, {'$project': {'product': 1, 'image_enrichment': 1, 'deal_terms': 1}}])
         docs = list(self.db.fact_table.aggregate(pipeline))
-        return {'items': [{'id': str(d['_id']), **d['product'], 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit}
+        return {'items': [{'id': str(d['_id']), **d['product'], 'deal_terms': d.get('deal_terms'), 'image_url': (d.get('image_enrichment') or {}).get('image_url'), 'enrichment_status': (d.get('image_enrichment') or {}).get('status')} for d in docs[:limit]], 'has_more': len(docs) > limit, 'as_of': at.isoformat(), 'next_offset': offset + len(docs[:limit]) if len(docs) > limit else None}
 
     def deal_window_counts(self, *, at=None):
         """Count all committed deal facts, independently of feed pagination/filters."""

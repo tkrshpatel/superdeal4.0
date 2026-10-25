@@ -266,3 +266,5 @@ main>.hero{padding-bottom:24px}
 main>.search-actions{margin:0}
 main>.search-actions+.filter-panel{margin-top:24px;margin-bottom:24px}
 main>.filter-panel+.section-head{margin-top:0}
+
+.feed-pagination{display:flex;justify-content:center;margin:24px 0}.feed-pagination[hidden]{display:none}.feed-pagination button{min-height:44px;padding:12px 24px;border-color:#becba9;background:#f0f5e5;color:#26361a;cursor:pointer}
