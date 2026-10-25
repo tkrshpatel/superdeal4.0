@@ -12,7 +12,7 @@ PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@
 RUPEES = re.compile(CURRENCY+NUMBER, re.I)
 PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
 CONDITIONAL = re.compile(r'coupon|promo|cashback|\bbank\b|\bcard\b|credit|debit|exchange|\bemi\b|\bhdfc\b|\bsbi\b|\bicici\b|\baxis\b|\bextra\b|additional|\bon\s+(?:orders?|spend)\b|minimum\s+(?:order|spend)', re.I)
-PUBLIC_KEYS = {'version','current_price','mrp','discount_pct','discount_kind','conditional_offers'}
+PUBLIC_KEYS = {'version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
 
 
 def number(value, maximum=100000000):
@@ -119,7 +119,8 @@ def resolve_offers(text, products, research=None):
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
         output.append({'version':1,'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
-                       'conditional_offers':evidence['conditional_offers'],'_sources':sources,'_conflicts':conflicts})
+                       'conditional_offers':evidence['conditional_offers'],
+                       'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output
 
 

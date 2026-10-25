@@ -30,7 +30,7 @@ def test_discount_only_publication_and_private_evidence():
         assert public['discount_pct']==60 and public['hot'] is True
         assert public['offer_facts']['discount_kind']=='exact'
         assert public['affiliate_url']==link
-        assert 'earnkaro' not in json.dumps(public).lower()
-        assert '_sources' not in json.dumps(public)
+        assert 'earnkaro' not in json.dumps(public,default=str).lower()
+        assert '_sources' not in json.dumps(public,default=str)
     finally:
         client.drop_database(db.name);client.close()

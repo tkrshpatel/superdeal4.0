@@ -320,10 +320,7 @@ class Backend:
                 persist_research(self.db.playwright_raw, raw_id, converted['response_text'], research)
                 # Mistral must consume the MongoDB snapshot, not a separate
                 # in-memory version of the scraped information.
-                try:
-                    research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
-                except ValueError:
-                    research = None  # Optional old browser evidence is missing or incomplete.
+                research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
                 self.log(raw_id, stage, 'INFO', 'RESEARCH_STORED', details={'links': len(research)})
                 llm_input = llm_evidence(converted['response_text'], research)
             stage = 'LLM'
@@ -474,7 +471,10 @@ class Backend:
                 products = [doc['product'] for doc in siblings]
                 # Evidence previously stored by the browser is eligible only by exact URL.
                 from pre_llm_research import load_research
-                research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
+                try:
+                    research = load_research(self.db.playwright_raw, raw_id, converted['response_text'])
+                except ValueError:
+                    research = None  # Optional old browser evidence is missing or incomplete.
                 resolved = resolve_offers(converted['response_text'], products, research)
                 cached = {str(doc['_id']): item for doc,item in zip(siblings,resolved)}
                 with self._offer_fact_lock:

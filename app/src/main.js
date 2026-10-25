@@ -157,6 +157,8 @@ function termsMarkup(d) {
     if (match && !codes.includes(match[1]) && !/^\d+$/.test(match[1])) codes.push(match[1]);
   }
   const extra=Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.map(o=>shopperText(o?.label)).filter(Boolean):[];
+  const advertised=d.offer_facts?.advertised_discount;
+  if(advertised?.kind==='up_to' && d.offer_facts?.discount_kind==='calculated' && Number(advertised.value)>0 && Number(advertised.value)<=100)extra.push('Advertised offer: Up to '+Number(advertised.value)+'% off');
   const details=[...new Set([...lines('instructions'),...lines('conditions'),...extra])];
   if (!codes.length && !details.length) return '';
   return `<section class="deal-terms" aria-label="Deal details"><h3>Below are details:</h3>

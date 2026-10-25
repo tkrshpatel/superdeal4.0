@@ -109,3 +109,8 @@ def test_hot_uses_verified_exact_discount(pct,kind,expected):
 
 def test_abbreviated_currency_is_not_misread_as_a_small_price():
     assert resolve('Price ₹2k')['current_price'] is None
+
+def test_advertised_up_to_remains_separate_when_exact_price_pair_is_available():
+    f=resolve('Price ₹500\nMRP ₹1000\nUp to 80% off')
+    assert f['discount_pct']==50 and f['discount_kind']=='calculated'
+    assert f['advertised_discount']=={'value':80,'kind':'up_to'}
