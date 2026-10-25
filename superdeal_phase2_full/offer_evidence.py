@@ -5,7 +5,7 @@ import math
 import re
 from deal_terms import links, URL
 
-NUMBER = r'((?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d{1,2})?)(?![\w,.])'
+NUMBER = r'((?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3}|\d+)(?:\.\d{1,2})?)(?![\w,]|\.\d)'
 CURRENCY = r'(?:₹\s*|(?:rs\.?|inr)\s*)'
 MRP = re.compile(r'\b(?:mrp|m\.r\.p\.?|original\s*price|list\s*price)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PRICE = re.compile(r'\b(?:deal\s*price|selling\s*price|price|at|now|only)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
@@ -30,6 +30,18 @@ def unique(values):
 
 def priced_link_rows(text):
     """Only accept a complete, unambiguous list of price: URL rows."""
+    rows={}
+    previous=0
+    for found in URL.finditer(text):
+        segment=text[previous:found.start()]
+        match=re.search(r'(?:@\s*|\bat\s+)(?:'+CURRENCY+r')?'+NUMBER+r'[\s.:]*[\[(]*\s*$',segment,re.I)
+        if match:
+            value=number(float(match[1].replace(',','')))
+            if value and found.group() not in rows:
+                rows[found.group()]=value
+        previous=found.end()
+    if len(rows)>1 and set(rows)==links(text):
+        return rows
     rows={}
     for line in text.splitlines():
         found=list(URL.finditer(line))
@@ -81,7 +93,13 @@ def product_evidence(text, products, product):
     if len(attached)==1 and next(iter(attached)) in rows:
         # The header applies to every row; each price belongs only to its URL.
         first_url=URL.search(text)
-        header=text[:first_url.start()].rsplit('\n',1)[0] if first_url else ''
+        prefix=text[:first_url.start()] if first_url else ''
+        markers=list(PRICE.finditer(prefix))+list(AT_PRICE.finditer(prefix))
+        if markers:
+            prefix=prefix[:min(m.start() for m in markers)]
+        # Only a leading advertised discount is shared, never another row's price.
+        headline=PERCENT.search(prefix)
+        header=headline.group() if headline and not CONDITIONAL.search(prefix[:headline.end()]) else ''
         return header+'\nPrice: ₹'+str(rows[next(iter(attached))])
     if len(products)==1 and attached==all_links:
         return text
@@ -221,7 +239,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':6,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':7,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output

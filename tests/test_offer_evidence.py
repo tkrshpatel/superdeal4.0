@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==6
+    assert fields['offer_facts']['version']==7
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==6
+    assert fields['offer_facts']['version']==7
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -260,3 +260,21 @@ def test_option_measurements_never_replace_the_explicit_price():
     text='LED Battens\nPack of 2 (36W) | 4 feet @599 : '+urls[0]+'\nPack of 1 (20W) @129 : '+urls[1]
     facts=resolve_offers(text,split_priced_products(text,[{**product(),'affiliate_urls':urls}]))
     assert [f['current_price'] for f in facts]==[599,129]
+
+
+@pytest.mark.parametrize('separator',['  ','\n'])
+def test_realme_inline_prices_with_sentence_punctuation(separator):
+    from offer_evidence import split_priced_products
+    a,b='https://fkrt.co/6a6jJP','https://fkrt.co/YXyJtT'
+    text='Price Drop : realme P4R 5G (4GB | 128GB) at 18749. '+a+separator+'6GB | 128GB at 21349 : '+b+' *COD Available | Buy Fast. *Price May Increase Anytime'
+    grouped={**product(),'product_name':'realme P4R 5G','affiliate_urls':[a,b]}
+    facts=resolve_offers(text,split_priced_products(text,[grouped]))
+    assert [f['current_price'] for f in facts]==[18749,21349]
+    assert all(f['mrp'] is None for f in facts)
+
+@pytest.mark.parametrize('text,value',[('Phone at 18749.',18749),('Phone @252.',252),('Phone Rs 252 only.',252),('Phone at 18749.50.',18749.5)])
+def test_sentence_ending_period_does_not_hide_a_price(text,value):
+    assert resolve(text)['current_price']==value
+
+def test_incomplete_decimal_is_not_silently_truncated():
+    assert resolve('Phone at 18749.999')['current_price'] is None
