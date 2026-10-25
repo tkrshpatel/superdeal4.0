@@ -37,3 +37,11 @@ Then opt in with an owned test address, confirm it, publish a matching controlle
 ## Evidence boundaries
 
 The chat execution environment is offline. This review used GitHub source and workflow logs; it is not a fresh local run or a test of the user's PC. Newly started GitHub workflow outcomes must be reviewed separately. No Telegram credentials, SMTP passwords, .env files, production subscriber data or session files are needed in chat. Real SMTP, production TLS/firewall, recovery, load and browser checks are still outstanding. No go-live approval is implied.
+
+## Fresh GitHub results on validation branch
+
+- Application regression suite: 174 passed on Python 3.11 and 3.12 after dependency/import-path repair.
+- Frontend tests/build: passed.
+- Backend collection uncovered a pre-existing API mismatch: test_image_candidates.py imports rank_candidates, but image_enrichment.py does not define it. The suite remains failing; this is not skipped or marked as passing.
+- Follow-up validation uses --continue-on-collection-errors so other backend tests execute while preserving the collection error and failing exit status.
+- Search/filtering currently runs over the 100 loaded cards, not the full database. Counts cover the full time window, so an absent search result does not establish that no matching deal exists.

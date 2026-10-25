@@ -45,7 +45,7 @@ jobs:
         run: python -m pytest tests -ra
       - name: MongoDB backend, HTTP, alerts and transaction tests
         if: ${{ !cancelled() }}
-        run: python -m pytest --import-mode=importlib superdeal_phase2_full --ignore=superdeal_phase2_full/test_mistral_live.py -ra
+        run: python -m pytest --import-mode=importlib --continue-on-collection-errors superdeal_phase2_full --ignore=superdeal_phase2_full/test_mistral_live.py -ra
       - name: Stop isolated MongoDB
         if: ${{ always() }}
         run: docker rm -f validation-mongo
