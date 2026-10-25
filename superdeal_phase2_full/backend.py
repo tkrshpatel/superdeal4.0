@@ -499,7 +499,9 @@ class Backend:
         pipeline = self._published_pipeline(limit=100000)
         # Apply filters before sorting and limiting; never scan/limit results in Python.
         pipeline = [x for x in pipeline if '$limit' not in x and '$sort' not in x and '$project' not in x]
-        criteria = []
+        at = now()
+        criteria = [{'_publication.published_at': {
+            '$gte': at - timedelta(hours=24), '$lte': at}}]
         if q:
             escaped = re.escape(q[:120])
             criteria.append({'$or': [{'product.product_name': {'$regex': escaped, '$options': 'i'}},
