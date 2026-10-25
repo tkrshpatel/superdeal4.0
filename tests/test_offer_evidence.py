@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==5
+    assert fields['offer_facts']['version']==6
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==5
+    assert fields['offer_facts']['version']==6
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -237,3 +237,26 @@ def test_incomplete_price_rows_do_not_split_or_borrow_price():
     assert priced_link_rows(text)=={}
     p={**product(),'affiliate_urls':[LINK,'https://affiliate.example/b']}
     assert split_priced_products(text,[p])==[p]
+
+
+def test_led_pack_rows_have_separate_prices_and_source_option_names():
+    from offer_evidence import split_priced_products
+    urls=['https://amzn-to.co/Nq81sm','https://amzn-to.co/jtgDuz','https://amzn-to.co/y90vGU']
+    labels=['Pack of 1 (20W) | 4 feet','Pack of 1 (24W)','Pack of 2 (36W) | 4 feet']
+    text='Grab : Upto 83% OFF Crompton LED Batten\n\n'+'\n'.join(label+' @'+str(price)+' : '+url for label,price,url in zip(labels,[129,190,599],urls))
+    grouped={**product(),'product_name':'Crompton LED Batten','affiliate_urls':urls}
+    products=split_priced_products(text,[grouped])
+    assert len(products)==3
+    assert all(label in p['product_name'] for label,p in zip(labels,products))
+    assert [p['affiliate_urls'] for p in products]==[[u] for u in urls]
+    facts=resolve_offers(text,products)
+    assert [f['current_price'] for f in facts]==[129,190,599]
+    assert all(f['discount_pct']==83 and f['discount_kind']=='up_to' for f in facts)
+    assert split_priced_products(text,products)==products
+
+def test_option_measurements_never_replace_the_explicit_price():
+    from offer_evidence import split_priced_products
+    urls=[LINK,'https://affiliate.example/b']
+    text='LED Battens\nPack of 2 (36W) | 4 feet @599 : '+urls[0]+'\nPack of 1 (20W) @129 : '+urls[1]
+    facts=resolve_offers(text,split_priced_products(text,[{**product(),'affiliate_urls':urls}]))
+    assert [f['current_price'] for f in facts]==[599,129]
