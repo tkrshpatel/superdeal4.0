@@ -17,3 +17,16 @@ def test_tokyo_talkies_categories_share_brand_and_discount_without_prices():
 
 def test_product_list_without_source_brand_context_is_not_renamed():
     assert category_context('Up to 90% off\n\nDresses: https://example.com/a\nJeans: https://example.com/b')=={}
+
+
+def test_generic_collection_labels_without_a_clothing_dictionary():
+    text='Store: Up to 70% off on Acme Kitchen Collection + Apply Coupon\n\nStorage Jars: https://example.com/a\nServing Bowls; https://example.com/b'
+    c=category_context(text)
+    assert c['names']['https://example.com/a']=='Acme Kitchen Collection Storage Jars'
+    assert c['discount']==70
+    assert c['brand'] is None
+
+def test_price_bearing_rows_stay_with_existing_price_pipeline():
+    text='Up to 60% off on Acme Home\n\nPlanter @279: https://example.com/a\nSculpture @799: https://example.com/b'
+    products=[{'product_name':'Original name','affiliate_urls':['https://example.com/a','https://example.com/b']}]
+    assert normalize_category_products(text,products)==products

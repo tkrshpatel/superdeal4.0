@@ -497,8 +497,8 @@ class Backend:
         attached=(fact.get('product') or {}).get('affiliate_urls') or []
         if len(attached)!=1 or attached[0] not in context.get('names',{}):
             return fields
-        result={**fields,'product_name':context['names'][attached[0]],'brand':context['brand']}
-        if context.get('discount') is not None:
+        result={**fields,'product_name':context['names'][attached[0]],'brand':context['brand'] or (fact.get('product') or {}).get('brand')}
+        if context.get('discount') is not None and (fields.get('offer_facts') or {}).get('discount_pct') is None:
             facts={**fields.get('offer_facts',{}),'version':11,
                    'discount_pct':context['discount'],'discount_kind':context['discount_kind']}
             result.update(offer_facts=facts,discount_percentage=context['discount'])

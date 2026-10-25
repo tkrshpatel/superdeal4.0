@@ -12,10 +12,17 @@ def category_context(text):
     if len(blocks)<2:
         return {}
     header='\n'.join(blocks[:-1]).strip()
-    context=re.search(r'\boff\s+on\s+(.+?)\s+(?:women[’\x27]?s?|men[’\x27]?s?|kids[’\x27]?|children[’\x27]?s?)\s+clothing\b',header,re.I)
+    context=re.search(r'\boff\s+on\s+([^\n]+)',header,re.I)
     if not context:
         return {}
-    brand=context[1].strip()
+    scope=re.split(r'\s*\+\s*',context[1],maxsplit=1)[0].strip(' .:;!')
+    # Audience qualifiers separate the brand from its collection description.
+    # Without one, retain the explicit collection title rather than guess a brand.
+    audience=re.search(r'\s+(?:women[’\x27]?s?|men[’\x27]?s?|kids[’\x27]?|children[’\x27]?s?)\s+',scope,re.I)
+    prefix=scope[:audience.start()].strip() if audience else scope
+    brand=prefix if audience else None
+    if not prefix or len(prefix)>120 or re.search(r'[@₹]|\b(?:coupon|cashback|using|bank)\b',prefix,re.I):
+        return {}
     rows={}
     for line in text.splitlines():
         matches=list(URL.finditer(line))
@@ -23,12 +30,12 @@ def category_context(text):
             continue
         label=line[:matches[0].start()].strip(' \t-*•')
         label=re.sub(r'[:;]\s*[\[(]*\s*$','',label).strip()
-        if not re.fullmatch(r'dresses?|jeans|tops?|sweatshirts?|sweaters?|shirts?|co[- ]?ords?|trousers|skirts?|shorts|jackets?|kurtas?|t[- ]?shirts?',label,re.I):
+        if not re.fullmatch(r'[^\W\d_][^\W\d_ \t]*(?:[\w\s&’\x27()/\-]*[^\W\d_])?',label,re.UNICODE) or len(label)>80 or re.search(r'\d|@|₹',label):
             continue
         link=next(iter(links(line)))
         if link in rows:
             return {}
-        rows[link]=brand+' '+label
+        rows[link]=prefix+' '+label
     if len(rows)<2 or set(rows)!=links(text):
         return {}
     discount=PERCENT.search(header)
@@ -43,6 +50,10 @@ def normalize_category_products(text,products):
     output=[]
     for product in products:
         for link in product.get('affiliate_urls') or []:
-            output.append({**product,'product_name':context['names'][link],
-                           'brand':context['brand'],'affiliate_urls':[link]})
+            name=context['names'][link]
+            existing=product.get('product_name','')
+            if existing.casefold().startswith(name.casefold()):
+                name=existing
+            output.append({**product,'product_name':name,
+                           'brand':context['brand'] or product.get('brand'),'affiliate_urls':[link]})
     return output
