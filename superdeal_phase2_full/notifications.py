@@ -50,8 +50,8 @@ def validate_request(data):
     if not isinstance(product, str) or not 3 <= len(product.strip()) <= 120 or re.search(r'[\x00-\x1f<>@]|https?://', product, re.I):
         raise ValueError('Enter a product name between 3 and 120 characters.')
     product = ' '.join(product.split())
-    if len(tokens(product)) < 2:
-        raise ValueError('Add the product model, for example iPhone 17 Pro.')
+    if not tokens(product):
+        raise ValueError('Enter a product name, for example Headphones.')
     if not isinstance(email, str) or len(email) > 254 or not re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?\.[A-Za-z]{2,63}", email.strip()):
         raise ValueError('Enter a valid email address.')
     if type(data['daily_limit']) is not int or data['daily_limit'] not in (1, 2, 3, 5):

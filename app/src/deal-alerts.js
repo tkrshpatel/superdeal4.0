@@ -10,7 +10,7 @@ export function mountDealAlerts({ api, product = () => '' }) {
       <h2 id="alert-title">Get notified</h2>
       <p class="alert-intro">Tell us what you’re looking for. We’ll email you when a matching deal appears.</p>
       <form id="deal-alert-form">
-        <label>Product and model<input name="product" required minlength="3" maxlength="120" placeholder="e.g. iPhone 17 Pro" autocomplete="off"></label>
+        <label>Product<input name="product" required minlength="3" maxlength="120" placeholder="e.g. Headphones or iPhone 17 Pro" autocomplete="off"></label>
         <label>Email address<input name="email" type="email" required maxlength="254" placeholder="you@example.com" autocomplete="email"></label>
         <div class="alert-preferences">
           <label>Emails per day<select name="daily_limit"><option value="1">Up to 1</option><option value="2">Up to 2</option><option value="3">Up to 3</option><option value="5">Up to 5</option></select></label>

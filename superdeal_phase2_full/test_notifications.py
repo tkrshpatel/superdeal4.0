@@ -52,7 +52,7 @@ def test_specific_model_matching(title, expected):
     assert matches('iPhone 17 Pro', title) is expected
 
 
-@pytest.mark.parametrize('patch', [{'consent': False}, {'daily_limit': True}, {'days': 31}, {'email': 'x\r\nBcc: x@y.com'}, {'product': '<img src=x>'}, {'product': 'phone'}, {'days': '7'}, {'daily_limit': 100}, {'extra': 'ignored?'}])
+@pytest.mark.parametrize('patch', [{'consent': False}, {'daily_limit': True}, {'days': 31}, {'email': 'x\r\nBcc: x@y.com'}, {'product': '<img src=x>'}, {'product': '---'}, {'days': '7'}, {'daily_limit': 100}, {'extra': 'ignored?'}])
 def test_validate_rejects_bad_input(patch):
     with pytest.raises(ValueError): validate_request({**REQUEST, **patch})
 
@@ -198,3 +198,10 @@ def test_smtp_cannot_use_placeholder_sender(monkeypatch):
     monkeypatch.setenv('SUPERDEAL_PUBLIC_URL','https://superdeals.example')
     monkeypatch.setenv('SUPERDEAL_EMAIL_FROM','SuperDeals <alerts@superdeals.invalid>')
     with pytest.raises(ValueError): Mailer()
+
+@pytest.mark.parametrize('name', ['Headphones', 'Shoes', 'iPhone', 'PS5'])
+def test_single_word_products_are_valid(name):
+    assert validate_request({**REQUEST, 'product': name})[0] == name
+
+def test_broad_product_matches_headphones_deal():
+    assert matches('Headphones', 'Sony Wireless Headphones')
