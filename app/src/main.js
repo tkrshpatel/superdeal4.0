@@ -139,8 +139,9 @@ function discountLabel(d) {
 function priceMarkup(d) {
   const p = priceFacts(d);
   const from=Number(d.offer_facts?.starting_price);
-  const displayed=p.current===null && Number.isFinite(from) && from>0 ? 'From '+money(from) : money(p.current);
-  return `<div class="price-row"><strong class="${p.current === null ? 'unknown-price' : ''}">${esc(displayed)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : (p.saving!==null?`<span class="saving">Save ${money(p.saving)}</span>`:'')+(p.discount!==null?`<span class="saving">${esc(discountLabel(d))}</span>`:'')}</div>`;
+  const hasStartingPrice=p.current===null && Number.isFinite(from) && from>0;
+  const displayed=hasStartingPrice ? 'From '+money(from) : money(p.current);
+  return `<div class="price-row"><strong class="${p.current === null && !hasStartingPrice ? 'unknown-price' : ''}">${esc(displayed)}</strong>${p.mrp !== null ? `<s>${money(p.mrp)}</s><span class="saving">Save ${money(p.saving)}</span>` : (p.saving!==null?`<span class="saving">Save ${money(p.saving)}</span>`:'')}</div>`;
 }
 // Defence in depth for old APIs and cached records: never render source metadata.
 const privateText = /earn\s*karo|telegram|(?:https?:\/\/)?(?:t\.me|telegram\.me)\/|@[A-Za-z0-9_]+|untrusted\s+merchant|merchant\s+page\s+research/i;
