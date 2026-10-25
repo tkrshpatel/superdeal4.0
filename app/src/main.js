@@ -168,7 +168,7 @@ function termsMarkup(d) {
     if (match && !codes.includes(match[1]) && !/^\d+$/.test(match[1])) codes.push(match[1]);
   }
   const extra=Array.isArray(d.offer_facts?.conditional_offers)?d.offer_facts.conditional_offers.map(o=>offerLabel(o?.label)).filter(Boolean):[];
-  if(Number(d.offer_facts?.effective_price)>0) extra.unshift('Effective price; apply the stated offer conditions at checkout.');
+  if(Number(d.offer_facts?.effective_price)>0) extra.unshift(d.offer_facts?.effective_price_condition==='Using card'?'Price available using an eligible card; confirm eligibility at checkout.':'Effective price; apply the stated offer conditions at checkout.');
   const advertised=d.offer_facts?.advertised_discount;
   if(advertised?.kind==='up_to' && d.offer_facts?.discount_kind==='calculated' && Number(advertised.value)>0 && Number(advertised.value)<=100)extra.push('Advertised offer: Up to '+Number(advertised.value)+'% off');
   const details=[...new Set([...lines('instructions'),...lines('conditions'),...extra])];
@@ -196,7 +196,7 @@ function card(d) {
   return `<article class="deal-card ${hasImage(d)?'':'without-image'}" data-open="${esc(d.id)}">
     <div class="image-wrap ${hasImage(d)?'':'image-fallback'}">
       <img src="${esc(hasImage(d) ? d.image_url : '/brand/superdeals-logo.png')}" alt="${esc(hasImage(d) ? title : 'SuperDeals — product image unavailable')}" loading="lazy" ${hasImage(d) ? '' : 'data-brand-fallback="true"'}>
-      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : conditional?`<span class="discount-badge">${esc(offerLabel(conditional.label))}</span>`:''}${Number(d.offer_facts?.effective_price)>0?'<span class="coupon-badge">Effective price</span>':''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
+      <div class="card-top">${isHotDeal(d)?'<span class="hot-badge">🔥 HOT</span>':''}${p.discount ? `<span class="discount-badge">${esc(discountLabel(d))}</span>` : conditional?`<span class="discount-badge">${esc(offerLabel(conditional.label))}</span>`:''}${Number(d.offer_facts?.effective_price)>0?`<span class="coupon-badge">${d.offer_facts?.effective_price_condition==='Using card'?'Using card':'Effective price'}</span>`:''}${supportedTerms(d)?.has_coupon?'<span class="coupon-badge">Coupon available</span>':supportedTerms(d)?.has_bank_offer?'<span class="coupon-badge">Bank offer</span>':''}</div>
       <button class="save ${saved?'saved':''}" data-save="${esc(d.id)}" aria-pressed="${saved}" aria-label="${saved?'Remove from saved':'Save deal'}">${saved?'♥':'♡'}</button>
     </div>
     <div class="card-content"><div class="card-meta"><div class="merchant">${esc(merchant)}</div>${d.last_seen_at && Number.isFinite(Date.parse(d.last_seen_at)) ? `<span class="posted-badge" title="Posted ${esc(d.last_seen_at)}">Posted ${esc(age(d.last_seen_at))}</span>` : ''}</div>

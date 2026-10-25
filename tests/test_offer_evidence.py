@@ -164,7 +164,7 @@ def test_version_one_saved_facts_are_recovered_with_the_updated_parser():
          'offer_facts':{'version':1,'current_price':None,'mrp':None,'discount_pct':None,'discount_kind':None}}
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
-    assert fields['offer_facts']['version']==9
+    assert fields['offer_facts']['version']==10
     assert fields['offer_facts']['discount_pct']==52
     assert db.fact_table.find_one({})['offer_facts']['version']==1
 
@@ -194,7 +194,7 @@ def test_version_two_price_is_recovered_from_saved_message():
     db.fact_table.insert_one(doc)
     fields=Backend(db)._offer_fields(doc)
     assert fields['deal_price']==252
-    assert fields['offer_facts']['version']==9
+    assert fields['offer_facts']['version']==10
 
 
 def test_orient_effective_price_with_three_colour_links():
@@ -307,3 +307,18 @@ def test_conflicting_standalone_prices_remain_ambiguous():
     f=resolve('86700\n85700')
     assert f['current_price'] is None
     assert 'AMBIGUOUS_SOURCE_PRICE' in f['_conflicts']
+
+
+@pytest.mark.parametrize('wording',['Using Card','with card','using a credit card','using debit card'])
+def test_explicit_card_price_is_displayable_and_qualified(wording):
+    f=resolve('Samsung 163cm 65inches 4K Ultra HD QLED TV @1,21,740 '+wording)
+    assert f['effective_price']==121740
+    assert f['effective_price_condition']=='Using card'
+    assert f['current_price'] is None
+    assert f['discount_pct'] is None and f['mrp'] is None
+    assert public_facts(f)['effective_price']==121740
+
+def test_card_saving_is_not_mistaken_for_conditional_selling_price():
+    f=resolve('11000 off Using Card')
+    assert f['effective_price'] is None
+    assert f['current_price'] is None

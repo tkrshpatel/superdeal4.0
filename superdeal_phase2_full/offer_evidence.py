@@ -14,7 +14,7 @@ RUPEES = re.compile(CURRENCY+NUMBER, re.I)
 STARTING = re.compile(r'\b(?:start(?:ing|s)?\s*(?:from|at)?|from)\s*[:=@-]?\s*(?:'+CURRENCY+r')?'+NUMBER, re.I)
 PERCENT = re.compile(r'(?<![\w.])(?:(up\s*to|upto|flat|extra|additional)\s*)?(\d{1,3}(?:\.\d+)?)\s*%\s*(?:off|discount|cashback)\b|\b(?:discount\s*[:=-]\s*|save\s+)(\d{1,3}(?:\.\d+)?)\s*%', re.I)
 CONDITIONAL = re.compile(r'coupon|promo|cashback|effective|after|using|subscription|new\s+users?|first\s+order|\bbogo\b|\bbuy\s*\d.*\bget\s*\d|\bbank\b|\bcard\b|credit|debit|exchange|\bemi\b|\bhdfc\b|\bsbi\b|\bicici\b|\baxis\b|\bextra\b|additional|\bon\s+(?:orders?|spend)\b|minimum\s+(?:order|spend)', re.I)
-PUBLIC_KEYS = {'effective_price','starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
+PUBLIC_KEYS = {'effective_price_condition','effective_price','starting_price','stated_savings','version','current_price','mrp','discount_pct','discount_kind','conditional_offers','advertised_discount'}
 
 
 def number(value, maximum=100000000):
@@ -116,6 +116,7 @@ def product_evidence(text, products, product):
 
 def extract(text):
     prices, mrps, discounts, conditional, savings, starts, effective = [], [], [], [], [], [], []
+    effective_conditions=[]
     text = URL.sub('', text)
     # A separate "+ Apply Coupon" instruction does not qualify every prior headline.
     for raw in re.split(r'[\n;|]+|\s*\+\s*(?=(?:apply|use|collect|extra|additional|bank)\b)', text, flags=re.I):
@@ -123,6 +124,13 @@ def extract(text):
         if not line:
             continue
         percent = list(PERCENT.finditer(line))
+        if not re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b',line,re.I):
+            for amount in list(AT_PRICE.finditer(line))+list(PRICE.finditer(line)):
+                if re.match(r'\s*(?:using|with)\s+(?:(?:a|an|the)\s+)?(?:(?:credit|debit)\s+)?card\b',line[amount.end():],re.I):
+                    value=number(float(amount[1].replace(',','')))
+                    if value:
+                        effective.append(value)
+                        effective_conditions.append('Using card')
         if re.search(r'\beffective\s*price\b',line,re.I) and not re.search(r'[$€£]|\b(?:USD|EUR|GBP|AED)\b',line,re.I):
             # Preserve an explicitly quoted effective price, never calculate it.
             candidates=list(AT_PRICE.finditer(line))+list(RUPEES.finditer(line))
@@ -204,7 +212,7 @@ def extract(text):
                          (discounts, 'AMBIGUOUS_SOURCE_DISCOUNT')):
         if len(set(values)) > 1:
             conflicts.append(code)
-    return {'effective_price': unique(effective), 'current_price': unique(prices), 'mrp': unique(mrps), 'discount': unique(discounts),
+    return {'effective_price_condition': unique(effective_conditions) if unique(effective) else None, 'effective_price': unique(effective), 'current_price': unique(prices), 'mrp': unique(mrps), 'discount': unique(discounts),
             'conditional_offers': conditional, 'starting_price': unique(starts), 'stated_savings': unique(savings), '_conflicts': conflicts}
 
 
@@ -245,7 +253,7 @@ def resolve_offers(text, products, research=None):
             # Keep evidence privately, but do not publish an orphan struck-through MRP.
             mrp=None
         sources['discount']='calculated' if kind=='calculated' else 'earnkaro' if pct else None
-        output.append({'version':9,'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
+        output.append({'version':10,'effective_price_condition':evidence['effective_price_condition'],'effective_price':evidence['effective_price'],'current_price':price,'mrp':mrp,'discount_pct':pct,'discount_kind':kind,
                        'conditional_offers':evidence['conditional_offers'],'starting_price':evidence['starting_price'],'stated_savings':evidence['stated_savings'],
                        'advertised_discount':{'value':stated[0],'kind':stated[1]} if stated and stated[1]=='up_to' else None,'_sources':sources,'_conflicts':conflicts})
     return output
