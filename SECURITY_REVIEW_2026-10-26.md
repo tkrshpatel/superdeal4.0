@@ -39,6 +39,18 @@ The earlier nine backend failures used a legacy URL-shaped LLM fixture despite p
 
 The former image collection error imported a helper that does not exist in the shipped API. The test now exercises the actual candidate_urls safety/ranking interface, product immutability and source ambiguity. No image-ranking or price-parsing feature was added to production code to satisfy stale tests.
 
+## GitHub Actions verification
+
+Verified code commit `201b07026838aa72fae454ac2306bd9aa9bbddde`:
+
+- Full application and MongoDB replica-set/backend suites pass on Python 3.11 and 3.12. The prior nine fixture failures and image import collection error are resolved. The proxy test is conditional in the generic application job; the dedicated security job supplies Caddy and runs it explicitly.
+- Security/dependency/secret-scan/real-proxy workflow passes.
+- Frontend tests and production build pass.
+- Full Android debug APK build passes with the audited dependency versions.
+- The environment-loading test now exercises the bounded server/public-only startup API while still asserting that existing .env host/port values are preserved.
+
+These are code/staging checks, not verification of the actual Windows host or public domain.
+
 ## Hosting readiness and remaining launch gates
 
 Prepared deployment: GoDaddy domain registration + Cloudflare DNS/Tunnel + Windows PC origin, with a separate direct-TLS Caddy option. See `deploy/README.md`, `deploy/hosting.env.example`, `scripts/hosting.py` and `scripts/check_public_security.py`.
