@@ -233,7 +233,7 @@ test('first page is usable while later pages load and partial failures remain ex
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(d.querySelectorAll('.deal-card').length,1);
   assert.match(d.querySelector('.deal-card').textContent,/First batch product/);
-  assert.match(d.querySelector('#feed-status').textContent,/More deals loading/);
+  assert.equal(d.querySelector('#feed-status').textContent,'Loading More...');
   d.querySelector('.title-button').click();
   assert.equal(d.querySelector('#detail').classList.contains('hidden'),false);
   release();

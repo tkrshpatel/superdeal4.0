@@ -108,9 +108,9 @@ app.innerHTML = `
   </section>
 
   <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
-  <p id="feed-status" role="status" hidden></p>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
   <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="filter" type="button">Show more deals</button></div>
+  <div id="feed-status" class="feed-status" role="status" aria-live="polite" hidden></div>
 </main>
 <footer class="site-footer" aria-label="Copyright and disclaimer">
   <div class="footer-heading">
@@ -281,13 +281,15 @@ async function load(sort = sortEl.value) {
   state.loading = true;
   const status = document.querySelector('#feed-status');
   status.hidden = false;
-  status.textContent = state.deals.length ? 'Refreshing deals…' : 'Loading deals…';
+  status.dataset.loading = 'true';
+  status.textContent = 'Loading More...';
   if (!state.deals.length) dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
   const acceptPage = payload => {
     if (request !== feedRequest) return;
     state.loading = !!payload.has_more;
     status.hidden = !state.loading;
-    status.textContent = state.loading ? 'More deals loading…' : '';
+    status.dataset.loading = String(state.loading);
+    status.textContent = state.loading ? 'Loading More...' : '';
     state.deals = payload.deals || [];
     const counts=payload.counts;
     state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
@@ -307,6 +309,7 @@ async function load(sort = sortEl.value) {
     await fetchDealWindow(API, sort, fetch, {signal:controller.signal, onPage:acceptPage});
   } catch {
     if (request !== feedRequest) return;
+    status.dataset.loading = 'false';
     if (shown || state.deals.length) {
       status.hidden = false;
       status.innerHTML = 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
