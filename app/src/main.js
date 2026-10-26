@@ -109,7 +109,7 @@ app.innerHTML = `
 
   <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
-  <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="filter" type="button">Show more deals</button></div>
+  <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="feed-more-button" type="button" aria-live="polite"><span class="feed-more-label">Show more deals</span><span class="feed-more-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span></button></div>
   <div id="feed-status" class="feed-status" role="status" aria-live="polite" hidden></div>
 </main>
 <footer class="site-footer" aria-label="Copyright and disclaimer">
@@ -229,9 +229,19 @@ function renderStoreFilters() {
   selected.innerHTML=[...state.merchants].map(name=>`<button class="selected-store" data-remove-store="${esc(name)}" aria-label="Remove ${esc(name)} filter">${esc(name)} <span aria-hidden="true">×</span></button>`).join('')+(state.merchants.size?'<button id="clear-selected-stores" type="button">Clear all stores</button>':'');
 }
 
+function updateFeedControl(list) {
+  const button = document.querySelector('#load-more-deals');
+  const errorVisible = !document.querySelector('#feed-status').hidden;
+  document.querySelector('#feed-pagination').hidden = errorVisible || (!state.loading && list.length <= state.visibleCount);
+  button.disabled = state.loading;
+  button.dataset.loading = String(state.loading);
+  button.setAttribute('aria-busy', String(state.loading));
+  button.querySelector('.feed-more-label').textContent = state.loading ? 'Loading More...' : 'Show more deals';
+}
+
 function render(list, {keepPage = false} = {}) {
   if (!keepPage) state.visibleCount = 24;
-  document.querySelector('#feed-pagination').hidden = list.length <= state.visibleCount;
+  updateFeedControl(list);
   renderStoreFilters();
   const counts=state.counts;
   freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
@@ -280,16 +290,14 @@ async function load(sort = sortEl.value) {
   let shown = false;
   state.loading = true;
   const status = document.querySelector('#feed-status');
-  status.hidden = false;
-  status.dataset.loading = 'true';
-  status.textContent = 'Loading More...';
+  status.hidden = true;
+  status.textContent = '';
+  updateFeedControl(localFilter(state.deals));
   if (!state.deals.length) dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
   const acceptPage = payload => {
     if (request !== feedRequest) return;
     state.loading = !!payload.has_more;
-    status.hidden = !state.loading;
-    status.dataset.loading = String(state.loading);
-    status.textContent = state.loading ? 'Loading More...' : '';
+    status.hidden = true;
     state.deals = payload.deals || [];
     const counts=payload.counts;
     state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
@@ -309,7 +317,6 @@ async function load(sort = sortEl.value) {
     await fetchDealWindow(API, sort, fetch, {signal:controller.signal, onPage:acceptPage});
   } catch {
     if (request !== feedRequest) return;
-    status.dataset.loading = 'false';
     if (shown || state.deals.length) {
       status.hidden = false;
       status.innerHTML = 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
@@ -320,7 +327,10 @@ async function load(sort = sortEl.value) {
       state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
     }
   } finally {
-    if (request === feedRequest) state.loading = false;
+    if (request === feedRequest) {
+      state.loading = false;
+      updateFeedControl(localFilter(state.deals));
+    }
   }
 }
 

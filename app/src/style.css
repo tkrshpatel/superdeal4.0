@@ -268,12 +268,20 @@ main>.search-actions{margin:0}
 main>.search-actions+.filter-panel{margin-top:24px;margin-bottom:24px}
 main>.filter-panel+.section-head{margin-top:0}
 
-.feed-pagination{display:flex;justify-content:center;margin:24px 0}.feed-pagination[hidden]{display:none}.feed-pagination button{min-height:44px;padding:12px 24px;border-color:#becba9;background:#f0f5e5;color:#26361a;cursor:pointer}
+.feed-pagination{display:flex;justify-content:center;margin:28px 0 32px}.feed-pagination[hidden]{display:none}
+.feed-more-button{display:inline-flex;align-items:center;justify-content:center;gap:16px;min-width:198px;min-height:52px;padding:8px 12px 8px 24px;border:1px solid #dce3d2;border-radius:999px;background:linear-gradient(145deg,#fff,#f3f7eb);color:#314326;box-shadow:0 3px 12px #34472509,inset 0 1px 0 #fff;font:600 13px/1.4 'DM Sans',system-ui,sans-serif;letter-spacing:.1px;cursor:pointer;transition:border-color .2s,box-shadow .2s,background .2s}
+.feed-more-button:not(:disabled):hover{border-color:#a8bb91;box-shadow:0 5px 18px #34472515;background:#f0f6e7}
+.feed-more-button:focus-visible{outline:3px solid #abc486;outline-offset:4px}
+.feed-more-icon{display:grid;place-items:center;width:32px;height:32px;flex-shrink:0;border:2px solid transparent;border-radius:50%;background:#e5eed8;color:#486431;transition:background .2s}
+.feed-more-button:not(:disabled):hover .feed-more-icon{background:#d8e7c5}
+.feed-more-button:disabled{cursor:wait}
+.feed-more-button[data-loading="true"] .feed-more-icon{background:transparent;border-color:#dce6d2;border-top-color:#668445;animation:feed-spin .8s linear infinite}
+.feed-more-button[data-loading="true"] svg{visibility:hidden}
 .feed-status{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;min-height:40px;margin:20px 0 28px;text-align:center;font-size:13px;font-weight:500;color:#6f7865}
 .feed-status[hidden]{display:none}
-.feed-status[data-loading="true"]::before{content:'';width:14px;height:14px;border:2px solid #dfe5d7;border-top-color:#66764c;border-radius:50%;animation:feed-spin .8s linear infinite}
 @keyframes feed-spin{to{transform:rotate(360deg)}}
-@media(prefers-reduced-motion:reduce){.feed-status[data-loading="true"]::before{animation:none}}
+@media(prefers-reduced-motion:reduce){.feed-more-button[data-loading="true"] .feed-more-icon{animation:none}.feed-more-button,.feed-more-icon{transition:none}}
+
 
 /* Keep cards stationary; highlight only the shop action on hover. */
 .deal-card .get-deal{transition:filter .18s ease,box-shadow .18s ease}

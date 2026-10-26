@@ -233,7 +233,9 @@ test('first page is usable while later pages load and partial failures remain ex
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(d.querySelectorAll('.deal-card').length,1);
   assert.match(d.querySelector('.deal-card').textContent,/First batch product/);
-  assert.equal(d.querySelector('#feed-status').textContent,'Loading More...');
+  assert.equal(d.querySelector('.feed-more-label').textContent,'Loading More...');
+  assert.equal(d.querySelector('#load-more-deals').disabled,true);
+  assert.equal(d.querySelector('#feed-status').hidden,true);
   d.querySelector('.title-button').click();
   assert.equal(d.querySelector('#detail').classList.contains('hidden'),false);
   release();
@@ -241,6 +243,37 @@ test('first page is usable while later pages load and partial failures remain ex
   assert.equal(d.querySelectorAll('.deal-card').length,1);
   assert.match(d.querySelector('#feed-status').textContent,/Results may be incomplete/);
   assert.ok(d.querySelector('#feed-status [data-retry]'));
+  dom.window.close();
+});
+
+test('one bottom control switches from loading to show more after the final page',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  let release;
+  const waiting=new Promise(resolve=>{release=resolve;});
+  const first=Array.from({length:48},(_,i)=>({id:'switch'+i,product_name:'Product '+i,merchant:'Amazon'}));
+  w.fetch=async url=>{
+    if (!new URL(url,'https://superdeal.example').searchParams.has('offset')) {
+      return {ok:true,json:async()=>({deals:first,has_more:true,next_offset:48})};
+    }
+    await waiting;
+    return {ok:true,json:async()=>({deals:[{id:'last',product_name:'Last product'}],has_more:false})};
+  };
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  const button=d.querySelector('#load-more-deals');
+  assert.equal(d.querySelectorAll('#load-more-deals').length,1);
+  assert.equal(button.disabled,true);
+  assert.equal(button.textContent,'Loading More...');
+  assert.equal(d.querySelector('#feed-pagination').hidden,false);
+  assert.equal(d.querySelector('#feed-status').hidden,true);
+  release();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(button.disabled,false);
+  assert.equal(button.textContent,'Show more deals');
+  assert.equal(d.querySelector('#feed-status').hidden,true);
+  button.click();button.click();
+  assert.equal(d.querySelectorAll('.deal-card').length,49);
+  assert.equal(d.querySelector('#feed-pagination').hidden,true);
   dom.window.close();
 });
 
