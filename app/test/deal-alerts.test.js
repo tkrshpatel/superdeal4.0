@@ -34,7 +34,8 @@ test('alert form prefills product and submits chosen limits with consent',async(
   assert.equal(w.requests.length,1);
   assert.deepEqual(JSON.parse(JSON.stringify(w.requests[0].body)),{product:'iPhone 17 Pro',email:'buyer@example.com',daily_limit:3,days:14,consent:true});
   assert.equal(w.requests[0].options.cache,'no-store');
-  assert.equal(w.document.querySelector('#alert-title').textContent,'SuperDEals');
+  assert.equal(w.document.querySelector('#alert-title img').getAttribute('src'),'/brand/superdeals-logo.png');
+  assert.equal(w.document.querySelector('#alert-title img').alt,'SuperDeals');
   assert.equal(w.document.querySelector('.alert-intro').textContent,'Thank you!!');
   assert.equal(w.document.querySelector('.alert-status').textContent,'We have saved your response. We will notify you once the deals show up!');
   assert.equal(form.hidden,true);

@@ -88,7 +88,7 @@ export function mountDealAlerts({ api, product = () => '' }) {
       });
       form.hidden = true;
       overlay.querySelector('.eyebrow').hidden = true;
-      overlay.querySelector('#alert-title').textContent = 'SuperDEals';
+      overlay.querySelector('#alert-title').innerHTML = '<img class="alert-success-logo" src="/brand/superdeals-logo.png" alt="SuperDeals" width="2048" height="683">';
       overlay.querySelector('.alert-intro').textContent = 'Thank you!!';
       status.textContent = 'We have saved your response. We will notify you once the deals show up!';
       overlay.querySelector('.alert-close').focus();
