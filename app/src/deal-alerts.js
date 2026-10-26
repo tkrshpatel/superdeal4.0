@@ -34,7 +34,9 @@ export function mountDealAlerts({ api, product = () => '' }) {
     actions.hidden = true;
     status.textContent = '';
     overlay.querySelector('#alert-title').textContent = 'Get notified';
+    overlay.querySelector('.eyebrow').hidden = false;
     overlay.querySelector('.alert-intro').hidden = false;
+    overlay.querySelector('.alert-intro').textContent = 'Tell us what you’re looking for. We’ll save your request and notification preferences.';
     form.elements.product.value = value.slice(0, 120);
     overlay.hidden = false;
     document.body.classList.add('alert-modal-open');
@@ -85,7 +87,10 @@ export function mountDealAlerts({ api, product = () => '' }) {
         daily_limit: Number(form.elements.daily_limit.value), days: Number(form.elements.days.value), consent: form.elements.consent.checked,
       });
       form.hidden = true;
-      status.textContent = 'Your notification request has been saved.';
+      overlay.querySelector('.eyebrow').hidden = true;
+      overlay.querySelector('#alert-title').textContent = 'SuperDEals';
+      overlay.querySelector('.alert-intro').textContent = 'Thank you!!';
+      status.textContent = 'We have saved your response. We will notify you once the deals show up!';
       overlay.querySelector('.alert-close').focus();
     } catch (error) { status.textContent = error.message || 'Connection failed. Please try again.'; }
     finally { button.disabled = false; }
