@@ -91,7 +91,7 @@ def test_real_reverse_proxy_allows_alerts_and_blocks_private_paths(monkeypatch,t
         # Same signed loopback client identity is shared by the three alert routes.
         body={'product':'Headphones','email':'synthetic@example.com','daily_limit':1,'days':2,'consent':True}
         with request('/api/v1/alerts',body) as r:assert r.code==202
-        assert backend.db.deal_alerts.count_documents({})==1
+        assert backend.db.notification_table.count_documents({})==1
         with request('/api/v1/alerts/confirm',{'token':'invalid'}) as r:assert r.code==400
         with request('/api/v1/alerts/stop',{'token':'invalid'}) as r:assert r.code==400
         with request('/deals',{}) as r:assert r.code==405
@@ -99,7 +99,7 @@ def test_real_reverse_proxy_allows_alerts_and_blocks_private_paths(monkeypatch,t
         for _ in range(9):
             with request('/api/v1/alerts',body,{'X-Superdeal-Proxy-Token':'forged','X-Superdeal-Client-IP':'8.8.8.8'}) as r:assert r.code==202
         with request('/api/v1/alerts',body) as r:assert r.code==429
-        assert backend.db.deal_alerts.count_documents({})==1
+        assert backend.db.notification_table.count_documents({})==1
     finally:
         process.terminate()
         try:process.wait(timeout=5)

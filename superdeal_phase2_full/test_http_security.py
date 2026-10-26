@@ -166,7 +166,7 @@ def test_public_startup_does_not_initialize_worker_collections():
     db=mongomock.MongoClient().db
     Backend(db).setup_public()
     assert not set(db.list_collection_names()) & {'raw','ek_raw','playwright_raw','pipeline_status','pipeline_logs','fact_table','dedupe_guards','telegram_inbox'}
-    assert {'deal_clicks','deal_alerts','alert_confirmations','alert_deliveries'} <= set(db.list_collection_names())
+    assert {'deal_clicks','deal_alerts','alert_confirmations','alert_deliveries','notification_table'} <= set(db.list_collection_names())
 
 
 @pytest.mark.parametrize('url',['https://0x7f.0.0.1/','https://0177.0.0.1/','https://0x7f000001/'])

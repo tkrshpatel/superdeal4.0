@@ -8,7 +8,7 @@ export function mountDealAlerts({ api, product = () => '' }) {
       <button type="button" class="alert-close" aria-label="Close notification form">×</button>
       <div class="eyebrow">YOUR NEXT FIND</div>
       <h2 id="alert-title">Get notified</h2>
-      <p class="alert-intro">Tell us what you’re looking for. We’ll email you when a matching deal appears.</p>
+      <p class="alert-intro">Tell us what you’re looking for. We’ll save your request and notification preferences.</p>
       <form id="deal-alert-form">
         <label>Product<input name="product" required minlength="3" maxlength="120" placeholder="e.g. Headphones or iPhone 17 Pro" autocomplete="off"></label>
         <label>Email address<input name="email" type="email" required maxlength="254" placeholder="you@example.com" autocomplete="email"></label>
@@ -16,9 +16,9 @@ export function mountDealAlerts({ api, product = () => '' }) {
           <label>Emails per day<select name="daily_limit"><option value="1">Up to 1</option><option value="2">Up to 2</option><option value="3">Up to 3</option><option value="5">Up to 5</option></select></label>
           <label>Notify me for<select name="days"><option value="1">1 day</option><option value="3">3 days</option><option value="7" selected>7 days</option><option value="14">14 days</option><option value="30">30 days</option></select></label>
         </div>
-        <p class="alert-hint">Only new matching deals, within your daily limit. No match means no email. Limits reset at midnight India time.</p>
-        <label class="alert-consent"><input name="consent" type="checkbox" required><span>I agree to receive these product deal alerts. I can unsubscribe anytime. My email will be used to manage and send these alerts.</span></label>
-        <button class="alert-submit" type="submit">Create my alert</button>
+        <p class="alert-hint">Choose your preferred daily email limit and how many days you want updates for.</p>
+        <label class="alert-consent"><input name="consent" type="checkbox" required><span>I agree to SuperDeals storing my email and preferences for product deal notifications.</span></label>
+        <button class="alert-submit" type="submit">Save my request</button>
       </form>
       <div class="alert-link-actions" hidden><button class="alert-submit" type="button" id="alert-link-action">Confirm</button></div>
       <p class="alert-status" role="status" aria-live="polite"></p>
@@ -67,7 +67,7 @@ export function mountDealAlerts({ api, product = () => '' }) {
         404: 'The alert endpoint is unavailable. Restart the updated MongoDB API.',
         405: 'The running API does not support alerts. Restart the updated MongoDB API.',
         429: 'Too many requests. Please try again later.',
-        503: 'Alerts could not access storage or email configuration. Check the API terminal for ALERT_SAVE_ERROR.',
+        503: 'We couldn’t save your request. Please try again shortly.',
       };
       throw new Error((messages[response.status] || 'Could not save this request. Please try again.') + ' (HTTP ' + response.status + ')');
     }
@@ -80,14 +80,12 @@ export function mountDealAlerts({ api, product = () => '' }) {
     button.disabled = true;
     status.textContent = 'Saving your request…';
     try {
-      const result = await post('/api/v1/alerts', {
+      await post('/api/v1/alerts', {
         product: form.elements.product.value.trim(), email: form.elements.email.value.trim(),
         daily_limit: Number(form.elements.daily_limit.value), days: Number(form.elements.days.value), consent: form.elements.consent.checked,
       });
       form.hidden = true;
-      status.textContent = result.email_mode === 'dry-run'
-        ? 'Request saved in preview mode. Email delivery is not enabled yet; no email has been sent. Confirmation and deal emails will be prepared locally for testing.'
-        : 'Request saved. Look for a confirmation email shortly and verify your address to activate alerts. Check your spam folder too.';
+      status.textContent = 'Your notification request has been saved.';
       overlay.querySelector('.alert-close').focus();
     } catch (error) { status.textContent = error.message || 'Connection failed. Please try again.'; }
     finally { button.disabled = false; }

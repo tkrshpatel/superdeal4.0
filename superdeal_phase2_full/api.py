@@ -51,7 +51,7 @@ def make_handler(backend, *, admin_token=None, request_budget=None):
     """Inject backend for isolated tests; no connection created on import."""
     token = admin_token if admin_token is not None else os.getenv('SUPERDEAL_ADMIN_TOKEN', '')
 
-    from notifications import Alerts, AlertBudget
+    from notifications import Alerts, AlertBudget, NotificationRequests
     alert_budget = AlertBudget()
     budget = request_budget or RequestBudget()
 
@@ -254,13 +254,15 @@ def make_handler(backend, *, admin_token=None, request_budget=None):
                 if len(raw) != length:
                     raise ValueError('Incomplete request.')
                 data = json.loads(raw)
-                service = Alerts(backend.db)
-                # Indexes are idempotent; no pipeline startup is required for signup.
-                service.setup()
                 if path == '/api/v1/alerts':
-                    service.subscribe(data)
-                    return self._send(202, {'status': 'accepted', 'email_mode': service.mailer.mode,
-                        'message': 'Request saved. Confirm your email to activate alerts.'})
+                    requests = NotificationRequests(backend.db)
+                    requests.setup()
+                    requests.save(data)
+                    return self._send(202, {'status': 'saved', 'email_mode': 'store-only',
+                        'message': 'Your notification request has been saved.'})
+                # Preserve old confirmation/stop links; new intake creates no mail queue.
+                service = Alerts(backend.db)
+                service.setup()
                 if not isinstance(data, dict) or set(data) != {'token'}:
                     raise ValueError('This link is invalid or expired.')
                 success = service.confirm(data['token']) if path.endswith('/confirm') else service.stop(data['token'])

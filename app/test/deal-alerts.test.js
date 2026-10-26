@@ -9,7 +9,7 @@ function setup(hash = '', handler) {
   w.requests = [];
   w.fetch = async (url, options) => {
     w.requests.push({url, body:JSON.parse(options.body), options});
-    return handler ? handler() : {ok:true,json:async()=>({status:'accepted',email_mode:'dry-run'})};
+    return handler ? handler() : {ok:true,json:async()=>({status:'saved',email_mode:'store-only'})};
   };
   w.eval(fs.readFileSync('src/deal-alerts.js','utf8').replace('export function', 'function'));
   w.mountDealAlerts({api:path=>path, product:()=> 'iPhone 17 Pro'});
@@ -34,7 +34,7 @@ test('alert form prefills product and submits chosen limits with consent',async(
   assert.equal(w.requests.length,1);
   assert.deepEqual(JSON.parse(JSON.stringify(w.requests[0].body)),{product:'iPhone 17 Pro',email:'buyer@example.com',daily_limit:3,days:14,consent:true});
   assert.equal(w.requests[0].options.cache,'no-store');
-  assert.match(w.document.querySelector('.alert-status').textContent,/no email has been sent/i);
+  assert.match(w.document.querySelector('.alert-status').textContent,/notification request has been saved/i);
   assert.equal(form.hidden,true);
   dom.window.close();
 });
@@ -58,7 +58,7 @@ test('failed request keeps form and preferences available for retry',async()=>{
   assert.equal(form.hidden,false);
   assert.equal(form.elements.days.value,'14');
   assert.equal(form.querySelector('[type=submit]').disabled,false);
-  assert.match(w.document.querySelector('.alert-status').textContent,/storage or email configuration/);
+  assert.match(w.document.querySelector('.alert-status').textContent,/couldn’t save your request/);
   dom.window.close();
 });
 

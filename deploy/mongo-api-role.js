@@ -7,7 +7,7 @@ const app = db.getSiblingDB(name);
 const role = 'superdealPublicApi';
 const privileges = [
   ...['fact_table','pipeline_status','pipeline_logs','ek_raw','playwright_raw'].map(collection => ({resource:{db:name,collection},actions:['find']})),
-  ...['deal_clicks','deal_alerts','alert_confirmations','alert_deliveries'].map(collection => ({resource:{db:name,collection},actions:['find','insert','update','remove','createIndex']})),
+  ...['deal_clicks','deal_alerts','alert_confirmations','alert_deliveries','notification_table'].map(collection => ({resource:{db:name,collection},actions:['find','insert','update','remove','createIndex']})),
 ];
 if (app.getRole(role)) app.updateRole(role,{privileges,roles:[]});
 else app.createRole({role,privileges,roles:[]});

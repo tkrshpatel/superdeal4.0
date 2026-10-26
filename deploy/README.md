@@ -49,12 +49,30 @@ The tunnel proxy trusts CF-Connecting-IP only on its loopback listener. Caddy ov
 
 `deploy/Caddyfile` is an alternative direct-TLS configuration, requiring public reachability on 80/443 and an appropriate host/network design. `hosting.py ... --mode direct` validates/serves it. Use one entry point, not both on conflicting ports.
 
+## Get Notified: request storage
+
+The website form saves to `notification_table` in the existing `MONGODB_DATABASE`.
+It does not send email, create confirmation mail, or require SMTP/Gmail credentials.
+`ds` is the latest submission timestamp in UTC; `created_at` preserves the first
+submission. Records include product, normalized email, daily_limit, days, consent,
+status=saved, source=website, email_verified=false and delivery_enabled=false.
+Repeated submissions for the same email/product update preferences and increment
+submission_count. Different products remain separate requests. Subscriber records
+are never returned by a public endpoint.
+
+Before updating an existing restricted API deployment, grant its existing
+superdealPublicApi role collection-level find/insert/update/createIndex privileges
+on notification_table. New role setup is included in mongo-api-role.js. Preserve
+the existing Mongo/API configuration. Earlier deal_alerts records and legacy mail
+queues are not migrated or replayed; the optional old notification worker is not
+needed for form storage and should remain stopped for this save-only deployment.
+
 ## 4. Required machine controls before public launch
 
 - Enable MongoDB authentication, bind it privately and use a non-admin application identity. `mongo-api-role.js` prepares a collection-scoped public API role without creating passwords/users. The API now initializes only public alert/click indexes, not worker collections. Give the API service its own MONGODB_URI through its private process environment; keep worker credentials separate. Verify unauthorized Mongo access is denied from another device.
 - Deny external access to MongoDB, API, Ollama, Caddy administration and Vite. The tunnel Caddy admin API is disabled.
 - Run merchant scraping in a worker network/sandbox that cannot reach loopback, LAN/private ranges, link-local or metadata endpoints. Existing URL/DNS checks and request interception are defense in depth, not a DNS-rebinding-proof isolation boundary. Verify the restriction from that worker environment; do not claim that a configuration flag proves isolation.
-- Configure authenticated STARTTLS SMTP and a real sender locally before public Get Notified testing. Dry-run previews are private, not delivered emails. Test email confirmation, quota and stop links with your own address.
+- Test Get Notified storage with your own email and verify the private notification_table record, timestamps and preferences. No email delivery is enabled by this form. If outbound mail is introduced later, separately validate authenticated STARTTLS, sender identity, consent verification, quotas and unsubscribe before activating delivery.
 - Set PC sleep/reboot/network recovery policies. Configure Windows Task Scheduler/service supervision for API, Caddy, tunnel connector, Telegram runner and notification worker. Use full paths, the repository working directory and least-privilege accounts. Perform a cold-reboot test; avoid duplicate Telegram sessions.
 - Restrict ACLs for `.env`, Telegram sessions, raw/inbox data, dry-run emails, logs, backups and Caddy's data folder. Do not place them in `app/dist` or a public share.
 - Create authenticated Mongo backups and perform a restore into a disposable database before launch. Test that the restored data contains publication/alert indexes and Telegram checkpoints. Do not modify or replay historical published deals.

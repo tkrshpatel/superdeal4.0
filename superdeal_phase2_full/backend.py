@@ -116,8 +116,9 @@ class Backend:
     def setup_public(self):
         """Public API creates only click/alert indexes, never worker source data."""
         self.db.deal_clicks.create_index([('deal_id', ASCENDING), ('clicked_at', -1)])
-        from notifications import Alerts
-        Alerts(self.db).setup()
+        from notifications import Alerts, NotificationRequests
+        Alerts.setup_indexes(self.db)
+        NotificationRequests(self.db).setup()
 
     def setup(self):
         self.db.raw.create_index([('channel', ASCENDING), ('message_id', ASCENDING)], unique=True)
