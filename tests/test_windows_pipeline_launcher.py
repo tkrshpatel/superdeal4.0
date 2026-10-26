@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import subprocess
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import pytest
@@ -33,6 +34,17 @@ def test_worker_credentials_preserve_configured_mongo_hosts_and_options(uri):
 def test_worker_password_is_required():
     with pytest.raises(launcher.StartupError):
         launcher.worker_uri('mongodb://localhost/app', '', 'app')
+
+
+def test_launcher_exposes_root_worker_modules_from_an_unrelated_directory(tmp_path):
+    script = str(Path(launcher.__file__).resolve())
+    code = ('import runpy,importlib.util; '
+            'runpy.run_path('+repr(script)+",run_name='launcher_path_check'); "
+            "assert importlib.util.find_spec('superdeal_telegram_capture') is not None; "
+            "assert importlib.util.find_spec('superdeal') is not None; "
+            "assert importlib.util.find_spec('backend') is not None")
+    result = subprocess.run([sys.executable,'-I','-c',code], cwd=tmp_path, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize('service', ['api','frontend','tunnel','ollama'])

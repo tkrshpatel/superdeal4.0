@@ -4,6 +4,7 @@ import argparse
 from contextlib import contextmanager
 import ctypes
 import hashlib
+import importlib
 import json
 import os
 from pathlib import Path
@@ -20,6 +21,8 @@ from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, ProxyHandler, HTTPSHandler, build_opener
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / 'src'))
 sys.path.insert(0, str(ROOT / 'superdeal_phase2_full'))
 SECRET = 'SUPERDEAL_LAUNCH_WORKER_PASSWORD'
 NONCE = 'SUPERDEAL_LAUNCH_NONCE'
@@ -122,6 +125,10 @@ def configuration():
     from runtime_env import load_env
     from hosting import settings
     load_env()
+    # runpy does not add the executed worker's directory to sys.path.
+    # Import these before opening service windows, without connecting providers.
+    for module in ('superdeal_telegram_capture', 'superdeal.telegram_user', 'telethon', 'requests', 'pymongo'):
+        importlib.import_module(module)
     if not (ROOT / '.env').is_file():
         raise StartupError('The existing staging .env file is missing.')
     _, errors = settings(ROOT)
@@ -400,6 +407,10 @@ def main():
         return 130
     except StartupError as exc:
         print('STOP:', exc, flush=True)
+        return 1
+    except ModuleNotFoundError as exc:
+        name = exc.name if re.fullmatch(r'[A-Za-z_][A-Za-z0-9_.]*', exc.name or '') else 'unknown'
+        print('STOP: missing Python module: '+name+'. Check the staging installation and launcher paths.', flush=True)
         return 1
     except Exception as exc:
         print('STOP: startup failed ('+type(exc).__name__+'). Check the service windows; credentials are not printed.', flush=True)
