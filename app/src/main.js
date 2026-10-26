@@ -326,7 +326,7 @@ function setFilter(id) {
   document.querySelectorAll('[data-filter]').forEach(b => {b.classList.toggle('active', b.dataset.filter === id);b.setAttribute('aria-pressed', String(b.dataset.filter === id));});
   const titles = {
     latest:['JUST IN','Latest deals'],
-    hot:['OVER 50% OFF','Hot deals'],
+    hot:["WHAT’S COOKING!!!",'Hot deals'],
     drops:['COMPARE & SAVE','Offers with savings'],
     under499:['BUDGET FINDS','Under ₹499'],
     discount:['BIG SAVINGS','50%+ off'],
@@ -359,7 +359,7 @@ function showDetail(id) {
       <div class="eyebrow">${esc(merchant)} · ${esc(offerType(d))}</div>
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
-      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT · New in 30 minutes · Over 75% off</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
+      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
       ${termsMarkup(d)}
       ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <button class="notify-product" type="button" data-notify-product="${esc(title)}">Get notified about this product</button>
