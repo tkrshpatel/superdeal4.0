@@ -295,3 +295,5 @@ footer.site-footer{display:flex;flex-direction:column;gap:10px;color:#71776b;fon
 .site-footer a:hover{color:var(--ink,#252c20)}
 .site-footer a:focus-visible{outline:2px solid currentColor;outline-offset:4px;border-radius:2px}
 @media(max-width:600px){footer.site-footer{font-size:11px}.site-footer .footer-heading{flex-direction:column;gap:6px}}
+
+.feed-more-button[data-loading="true"] .feed-more-label{font-size:15px}
