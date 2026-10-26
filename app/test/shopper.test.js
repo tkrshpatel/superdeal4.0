@@ -233,7 +233,7 @@ test('first page is usable while later pages load and partial failures remain ex
   await new Promise(resolve=>setTimeout(resolve,0));
   assert.equal(d.querySelectorAll('.deal-card').length,1);
   assert.match(d.querySelector('.deal-card').textContent,/First batch product/);
-  assert.equal(d.querySelector('.feed-more-label').textContent,'Loading More...');
+  assert.equal(d.querySelector('.feed-more-label').textContent,'Loading...');
   assert.equal(d.querySelector('#load-more-deals').disabled,true);
   assert.equal(d.querySelector('#feed-status').hidden,true);
   d.querySelector('.title-button').click();
@@ -263,7 +263,7 @@ test('one bottom control switches from loading to show more after the final page
   const button=d.querySelector('#load-more-deals');
   assert.equal(d.querySelectorAll('#load-more-deals').length,1);
   assert.equal(button.disabled,true);
-  assert.equal(button.textContent,'Loading More...');
+  assert.equal(button.textContent,'Loading...');
   assert.equal(d.querySelector('#feed-pagination').hidden,false);
   assert.equal(d.querySelector('#feed-status').hidden,true);
   release();

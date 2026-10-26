@@ -236,7 +236,7 @@ function updateFeedControl(list) {
   button.disabled = state.loading;
   button.dataset.loading = String(state.loading);
   button.setAttribute('aria-busy', String(state.loading));
-  button.querySelector('.feed-more-label').textContent = state.loading ? 'Loading More...' : 'Show more deals';
+  button.querySelector('.feed-more-label').textContent = state.loading ? 'Loading...' : 'Show more deals';
 }
 
 function render(list, {keepPage = false} = {}) {
