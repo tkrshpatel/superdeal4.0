@@ -1,4 +1,5 @@
 """Phase 4: real MongoDB publication-gated pagination/detail; no external services."""
+from fixture_link_ids import as_link_ids
 import os
 from uuid import uuid4
 from pymongo import MongoClient
@@ -15,6 +16,7 @@ def test_database_pagination_and_visibility():
             url = 'https://example.com/affiliate-' + str(i)
             backend.converter = lambda _, u=url: {'response_text': u, 'response_payload': {'data': u}}
             backend.llm = lambda _, u=url, n=i: {'products': [{'product_name': 'Test ' + str(n), 'brand': None, 'ecommerce_platform': None, 'deal_price': 100, 'original_price': None, 'discount_percentage': None, 'affiliate_urls': [u], 'confidence': 90, 'issues': []}], 'unassigned_urls': [], 'message_issues': [], 'analysis_summary': ''}
+            backend.llm = as_link_ids(backend.llm, lambda: backend.converter('fixture')['response_text'])
             rid = backend.ingest('@phase4', str(i), 'synthetic')
             assert backend.process(rid) == 1
         first = backend.published_page(limit=2, offset=0)

@@ -20,7 +20,7 @@ superdeal-worker = "superdeal.runner:main"
 superdeal-telegram-login = "superdeal.telegram_login:main"
 
 [project.optional-dependencies]
-test = ["pytest>=8,<9", "mongomock>=4.3,<5"]
+test = ["pytest>=9.0.3,<10", "mongomock>=4.3,<5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

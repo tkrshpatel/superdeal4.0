@@ -1,0 +1,14 @@
+{
+	admin off
+	servers {
+		timeouts {
+			read_header 10s
+			read_body 10s
+			idle 30s
+		}
+	}
+}
+# Direct HTTPS option; requires public reachability on 80/443 for issuance.
+{$SUPERDEAL_DOMAIN} {
+	import common.caddy
+}

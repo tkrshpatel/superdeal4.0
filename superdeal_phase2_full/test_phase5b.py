@@ -1,4 +1,5 @@
 """Phase 5b: live MongoDB search and exact affiliate redirects, synthetic data only."""
+from fixture_link_ids import as_link_ids
 import os
 import threading
 from uuid import uuid4
@@ -20,8 +21,9 @@ def test_search_and_affiliate_redirect():
         b.setup()
         for i, (name_, merchant, price) in enumerate([('Sony Headphones', 'Amazon', 1999), ('boAt Speaker', 'Flipkart', 999), ('Sony TV', 'Amazon', 49999)]):
             url = 'https://example.com/offer?ref=ab%2Fcd&n=' + str(i)
-            b.converter = lambda _, u=url: {'response_text': u, 'response_payload': {'data': u}}
+            b.converter = lambda _, u=url, p=price: {'response_text': 'Price Rs '+str(p)+'\n'+u, 'response_payload': {'data': u}}
             b.llm = lambda _, n=name_, m=merchant, p=price, u=url: {'products': [{'product_name': n, 'brand': None, 'ecommerce_platform': m, 'deal_price': p, 'original_price': None, 'discount_percentage': None, 'affiliate_urls': [u], 'confidence': 90, 'issues': []}], 'unassigned_urls': [], 'message_issues': [], 'analysis_summary': ''}
+            b.llm = as_link_ids(b.llm, lambda: b.converter('fixture')['response_text'])
             assert b.process(b.ingest('@phase5b', str(i), 'synthetic')) == 1
         assert len(b.legacy_search(q='sony')['items']) == 2
         assert len(b.legacy_search(merchant='amazon')['items']) == 2

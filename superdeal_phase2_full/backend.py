@@ -113,6 +113,12 @@ class Backend:
         self._deal_terms_cache = OrderedDict()
         self._offer_fact_lock = threading.Lock()
 
+    def setup_public(self):
+        """Public API creates only click/alert indexes, never worker source data."""
+        self.db.deal_clicks.create_index([('deal_id', ASCENDING), ('clicked_at', -1)])
+        from notifications import Alerts
+        Alerts(self.db).setup()
+
     def setup(self):
         self.db.raw.create_index([('channel', ASCENDING), ('message_id', ASCENDING)], unique=True)
         self.db.ek_raw.create_index('raw_id', unique=True)
@@ -690,13 +696,11 @@ class Backend:
 
     def affiliate_destination(self, deal_id):
         """Return an exact, validated published affiliate URL; never rewrite it."""
-        from urllib.parse import urlsplit
+        from http_security import safe_destination
         item = self.published_offer_by_id(deal_id)
         if not item: return None
         for url in item.get('affiliate_urls') or []:
-            if not isinstance(url, str): continue
-            parsed = urlsplit(url)
-            if parsed.scheme in ('https', 'http') and parsed.hostname and not parsed.username and not parsed.password and not any(c in url for c in '\r\n'):
+            if safe_destination(url):
                 return url
         return None
 

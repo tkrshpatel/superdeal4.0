@@ -17,7 +17,7 @@ function openDeal(id) {
     // Open outside the embedded WebView. The OS/browser handles supported app links.
     Browser.open({url}).catch(() => { window.location.href = url; });
   } else {
-    window.open(url, '_blank', 'noopener');
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 }
 
@@ -136,7 +136,7 @@ const hotCount = document.querySelector('#hot-count');
 const money = v => v == null ? 'View price at website' : `₹${Number(v).toLocaleString('en-IN')}`;
 const displayMerchant = displayRetailer;
 const displayTitle = d => shopperText(d.product_name) || shopperText(d.page_title) || 'SuperDeals Find';
-const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
+const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https:\/\//i.test(d.image_url);
 const offerType = d => priceFacts(d).current !== null ? 'Product deal' : 'Offer';
 function discountLabel(d) {
   const pct=priceFacts(d).discount;
@@ -345,7 +345,7 @@ function showDetail(id) {
       ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <button class="notify-product" type="button" data-notify-product="${esc(title)}">Get notified about this product</button>
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
-      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
+      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener noreferrer">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
     </div>`;
   applyImageFallbacks(detail);
   detail.classList.remove('hidden');

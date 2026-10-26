@@ -1,6 +1,7 @@
 """Real HTTP + real MongoDB; mocked converter/LLM; no Telegram or external calls.
 Run: python -m pytest superdeal_mongo_backend\\test_http_mongodb_e2e.py -v
 """
+from fixture_link_ids import as_link_ids
 import json
 import os
 import threading
@@ -60,6 +61,7 @@ def configure(backend, *items):
     backend.converter = lambda _: {'response_text': text, 'response_payload': {'data': text, 'success': True}}
     backend.llm = lambda _: {'products': list(items), 'unassigned_urls': [],
                              'message_issues': [], 'analysis_summary': 'Controlled test'}
+    backend.llm = as_link_ids(backend.llm, lambda: backend.converter('fixture')['response_text'])
 
 
 def test_health_real_mongodb(system):
@@ -91,6 +93,7 @@ def test_failed_second_product_never_visible_and_logs(system):
     backend.llm = lambda _: {'products': [product('https://example.com/ok', 'OK'),
                                           product('https://example.com/INVENTED', 'Bad')],
                              'unassigned_urls': [], 'message_issues': [], 'analysis_summary': 'Bad'}
+    backend.llm = as_link_ids(backend.llm, lambda: backend.converter('fixture')['response_text'])
     raw_id = backend.ingest('@test', '2', 'Original')
     assert backend.process(raw_id) == 0
     assert backend.db.pipeline_status.find_one({'raw_id': raw_id})['status'] == 'FAILED'

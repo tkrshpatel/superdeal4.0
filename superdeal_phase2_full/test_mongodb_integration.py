@@ -1,4 +1,5 @@
 """Real MongoDB integration tests. Never touches the production database."""
+from fixture_link_ids import as_link_ids
 import os
 from uuid import uuid4
 
@@ -53,6 +54,7 @@ def test_two_products_publish_together(backend):
     text = f'A {a} B {b}'
     backend.converter = lambda _: {'response_text': text, 'response_payload': {'data': text}}
     backend.llm = lambda _: result(product(a, 'Product A'), product(b, 'Product B'))
+    backend.llm = as_link_ids(backend.llm, lambda: backend.converter('fixture')['response_text'])
     raw_id = backend.ingest('@sample', '124', 'Original Telegram message')
     assert backend.process(raw_id) == 2
     assert len(backend.published_offers()) == 2
@@ -66,6 +68,7 @@ def test_invalid_second_product_blocks_everything(backend):
     text = f'A {a} B {b}'
     backend.converter = lambda _: {'response_text': text, 'response_payload': {'data': text}}
     backend.llm = lambda _: result(product(a), product('https://invented.example/other'))
+    backend.llm = as_link_ids(backend.llm, lambda: backend.converter('fixture')['response_text'])
     raw_id = backend.ingest('@sample', '125', 'Original Telegram message')
     assert backend.process(raw_id) == 0
     assert backend.db.pipeline_status.find_one({'raw_id': raw_id})['status'] == 'FAILED'
