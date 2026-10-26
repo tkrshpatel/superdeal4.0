@@ -4,6 +4,41 @@ The prepared route is GoDaddy as registrar, Cloudflare DNS/Tunnel as the HTTPS e
 
 No DNS, account, domain, firewall or live service has been changed by these files. Main is not automatically updated.
 
+## Desktop startup after a reboot or crash
+
+Copy `scripts/Start-SuperDeals.bat` to the Windows Desktop after pulling this branch.
+It defaults to `%USERPROFILE%\superdeal-staging`; set `SUPERDEAL_PROJECT` to a
+different existing checkout if needed. Its supporting scripts stay in the repo.
+
+Double-click the batch file. It validates the existing `.env` and built frontend,
+then asks once for the saved **superdeals_worker MongoDB password** if the Telegram
+worker is not already running. The hidden prompt uses Windows PowerShell, avoiding
+the terminal paste problem seen with Python getpass. No password is stored in the
+batch file, a command-line argument, or an additional credentials file.
+
+The launcher starts/reuses MongoDB, API, production Caddy, Cloudflare Tunnel and
+the existing Ollama server/model, then starts the Telegram publication worker.
+MongoDB may show a UAC prompt when stopped; only the service-start action is
+elevated. The API host/port/URI/database remain configured by `.env`. The worker
+uses its separate username and password while retaining the configured Mongo
+hosts and replica-set options. Caddy/tunnel receive no worker password.
+
+Service windows are labeled and stay open for diagnosis. The launcher waits for
+health checks and a Telegram LISTENING/MONITORING signal with capture_only=False.
+A small nonce/PID marker in `data/launcher-worker-ready.json` contains no message
+contents or credentials. Repeated double-clicks reuse healthy services; named
+mutexes prevent duplicate managed workers. Existing unrelated/unhealthy port
+listeners are not killed or replaced. Close only the launcher after success;
+keep the service windows open while hosting.
+
+Startup uses the existing build and model. It does not pull Git, install packages,
+download models, rewrite settings, replay history, clean MongoDB, or start the
+legacy outbound email worker. Get Notified continues storing requests in
+notification_table. A missing model, expired Telegram session, invalid password,
+or missing frontend build is reported for correction rather than silently switching
+the runner to capture-only mode. Public health uses verified TLS and the certifi CA
+bundle, which passed the earlier Windows certificate-chain test.
+
 ## 1. Prepare locally
 
 Keep existing root `.env` API host/port/database configuration. Merge the settings in `deploy/hosting.env.example` into it; do not overwrite `.env`. Use your real domain, unique admin/proxy tokens and the exact HTTPS origin. Edit existing settings instead of appending duplicate keys; preserve existing allowed origins where needed. Never send credentials or session files in chat. Install current security-supported Python 3.11+ and Node 22+ on Windows. Install Caddy from its official release and verify its checksum.
