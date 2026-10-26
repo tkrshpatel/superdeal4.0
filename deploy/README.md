@@ -6,7 +6,7 @@ No DNS, account, domain, firewall or live service has been changed by these file
 
 ## 1. Prepare locally
 
-Keep existing root `.env` API host/port/database configuration. Merge the settings in `deploy/hosting.env.example` into it; do not overwrite `.env`. Use your real domain, unique admin/proxy tokens and the exact HTTPS origin. Never send credentials or session files in chat. Install current security-supported Python 3.11+ and Node 22+ on Windows. Install Caddy from its official release and verify its checksum.
+Keep existing root `.env` API host/port/database configuration. Merge the settings in `deploy/hosting.env.example` into it; do not overwrite `.env`. Use your real domain, unique admin/proxy tokens and the exact HTTPS origin. Edit existing settings instead of appending duplicate keys; preserve existing allowed origins where needed. Never send credentials or session files in chat. Install current security-supported Python 3.11+ and Node 22+ on Windows. Install Caddy from its official release and verify its checksum.
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install --upgrade pip

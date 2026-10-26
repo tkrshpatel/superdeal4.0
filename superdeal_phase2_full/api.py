@@ -5,7 +5,7 @@ import hmac
 import json
 import os
 from datetime import datetime, timezone, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
 from backend import connect

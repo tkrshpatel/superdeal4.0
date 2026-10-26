@@ -50,11 +50,11 @@ def test_api_uses_env_host_and_port_without_overriding(tmp_path,monkeypatch):
     for key in ('SUPERDEAL_API_HOST','SUPERDEAL_API_PORT','SUPERDEAL_ADMIN_TOKEN'):
         monkeypatch.delenv(key,raising=False)
     monkeypatch.setattr(runtime_env,'load_env',lambda:load_env(path))
-    backend=type('Backend',(),{'setup':lambda self:None})()
+    backend=type('Backend',(),{'setup_public':lambda self:None})()
     monkeypatch.setattr(api,'connect',lambda:backend)
     class StopServer(Exception): pass
     class Server:
         def __init__(self,address,handler): assert address==('127.0.0.1',8123)
         def serve_forever(self): raise StopServer()
-    monkeypatch.setattr(api,'ThreadingHTTPServer',Server)
+    monkeypatch.setattr(api,'BoundedHTTPServer',Server)
     with pytest.raises(StopServer): api.main()
