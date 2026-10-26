@@ -30,3 +30,32 @@ test('a later-page failure does not return a misleading partial catalog',async()
     ? {ok:true,json:async()=>({deals:[{id:'1'}],has_more:true,next_offset:1})}
     : {ok:false}),/API unavailable/);
 });
+
+test('publishes the first batch before the remaining network request finishes', async()=>{
+  let release, calls=0;
+  const waiting=new Promise(resolve=>{release=resolve;});
+  const pages=[];
+  const pending=fetchDealWindow(p=>p,'newest',async()=>{
+    if (++calls===1) return {ok:true,json:async()=>({deals:[{id:'first'}],has_more:true,next_offset:1})};
+    await waiting;
+    return {ok:true,json:async()=>({deals:[{id:'last'}],has_more:false})};
+  }, {onPage:page=>pages.push(page)});
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.deepEqual(pages.map(p=>p.deals.map(d=>d.id)), [['first']]);
+  assert.equal(pages[0].has_more,true);
+  release();
+  const final=await pending;
+  assert.deepEqual(final.deals.map(d=>d.id),['first','last']);
+  assert.equal(pages.at(-1).has_more,false);
+  assert.equal(pages[0].deals.length,1);
+});
+
+test('cancels obsolete pagination before requesting the next batch',async()=>{
+  const controller=new AbortController();
+  let calls=0;
+  await assert.rejects(fetchDealWindow(p=>p,'newest',async()=>{
+    calls++;
+    return {ok:true,json:async()=>({deals:[{id:'first'}],has_more:true,next_offset:1})};
+  }, {signal:controller.signal,onPage:()=>controller.abort()}), {name:'AbortError'});
+  assert.equal(calls,1);
+});

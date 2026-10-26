@@ -658,6 +658,57 @@ class Backend:
         for doc in self.db.fact_table.aggregate(pipeline):
             yield {'id': str(doc['_id']), **doc['product'], **self._offer_fields(doc)}
 
+    def public_metadata_many(self, deal_ids):
+        """Resolve one page with three DB queries, rather than three per card.
+
+        Recheck the committed publication pair; never trust IDs supplied by callers.
+        Price evidence and source precedence use the same resolver as single cards.
+        """
+        from bson import ObjectId
+        from bson.errors import InvalidId
+        from offer_evidence import is_hot
+        ids = []
+        for value in deal_ids:
+            try:
+                ids.append(ObjectId(value))
+            except (InvalidId, TypeError):
+                continue
+        if not ids:
+            return {}
+        facts = list(self.db.fact_table.find({'_id': {'$in': ids}},
+            {'raw_id': 1, 'publication_id': 1, 'product': 1, 'offer_facts': 1}))
+        publications = {
+            (s['raw_id'], s.get('publication_id')): s
+            for s in self.db.pipeline_status.find(
+                {'raw_id': {'$in': [f['raw_id'] for f in facts]}, 'status': 'PUBLISHED'},
+                {'raw_id': 1, 'publication_id': 1, 'published_at': 1})
+        }
+        current = now()
+        cutoff = current - timedelta(hours=24)
+        clicks = {d['_id']: d['count'] for d in self.db.deal_clicks.aggregate([
+            {'$match': {'deal_id': {'$in': [str(f['_id']) for f in facts]},
+                        'clicked_at': {'$gte': cutoff}}},
+            {'$group': {'_id': '$deal_id', 'count': {'$sum': 1}}},
+        ])}
+        result = {}
+        for fact in facts:
+            status = publications.get((fact['raw_id'], fact.get('publication_id')))
+            if status is None:
+                continue
+            published_at = status.get('published_at')
+            if published_at is not None and published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
+            evidence = self._offer_fields(fact).get('offer_facts')
+            if evidence is None:
+                product = fact.get('product') or {}
+                evidence = {'current_price': product.get('deal_price'), 'mrp': product.get('original_price')}
+            result[str(fact['_id'])] = {
+                'published_at': published_at, 'click_count': clicks.get(str(fact['_id']), 0),
+                'hot': bool(published_at and current-timedelta(minutes=30) <= published_at <= current and is_hot(evidence)),
+                'fresh_window_hours': 24, 'fresh': bool(published_at and published_at >= cutoff),
+            }
+        return result
+
     def public_metadata(self, deal_id):
         """Derived only from committed publication and observed click records.
 

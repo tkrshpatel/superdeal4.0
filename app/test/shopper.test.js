@@ -219,6 +219,31 @@ test('grid pagination renders 24 at a time and search reaches beyond the first 1
   dom.window.close();
 });
 
+test('first page is usable while later pages load and partial failures remain explicit',async()=>{
+  const dom=await setup(),w=dom.window,d=w.document;
+  let release;
+  const waiting=new Promise(resolve=>{release=resolve;});
+  w.fetch=async url=>{
+    const offset=new URL(url,'https://superdeal.example').searchParams.get('offset');
+    if (!offset) return {ok:true,json:async()=>({deals:[{id:'fast',product_name:'First batch product',merchant:'Amazon'}],has_more:true,next_offset:1})};
+    await waiting;
+    return {ok:false};
+  };
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  assert.match(d.querySelector('.deal-card').textContent,/First batch product/);
+  assert.match(d.querySelector('#feed-status').textContent,/More deals loading/);
+  d.querySelector('.title-button').click();
+  assert.equal(d.querySelector('#detail').classList.contains('hidden'),false);
+  release();
+  await new Promise(resolve=>setTimeout(resolve,0));
+  assert.equal(d.querySelectorAll('.deal-card').length,1);
+  assert.match(d.querySelector('#feed-status').textContent,/Results may be incomplete/);
+  assert.ok(d.querySelector('#feed-status [data-retry]'));
+  dom.window.close();
+});
+
 test('cards/details preserve exact, up-to and conditional discount distinctions',async()=>{
   const dom=await setup(),w=dom.window,d=w.document;
   w.fetch=async()=>({ok:true,json:async()=>({deals:[

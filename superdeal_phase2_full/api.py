@@ -145,7 +145,9 @@ def make_handler(backend, *, admin_token=None, request_budget=None):
                         if set(params) & {'q', 'merchant', 'min_price', 'max_price', 'sort'}:
                             return self._send(400, {'error': 'unsupported_legacy_filters'})
                         page = backend.published_page(limit=limit, offset=offset)
-                    return self._send(200, {'deals': [_legacy_deal(x, backend.public_metadata(x['id']) if hasattr(backend, 'public_metadata') else None) for x in page['items']],
+                    metadata = (backend.public_metadata_many([x['id'] for x in page['items']])
+                                if hasattr(backend, 'public_metadata_many') else None)
+                    return self._send(200, {'deals': [_legacy_deal(x, metadata.get(x['id']) if metadata is not None else backend.public_metadata(x['id']) if hasattr(backend, 'public_metadata') else None) for x in page['items']],
                                             'counts': backend.deal_window_counts() if hasattr(backend, 'deal_window_counts') else None,
                                             'fresh_window_hours': 24 if hasattr(backend, 'public_metadata') else None, 'has_more': page['has_more'], 'as_of': page.get('as_of'), 'next_offset': page.get('next_offset')})
                 if url.path.startswith('/deals/') and url.path.endswith('/price-history'):

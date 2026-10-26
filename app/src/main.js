@@ -108,6 +108,7 @@ app.innerHTML = `
   </section>
 
   <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
+  <p id="feed-status" role="status" hidden></p>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
   <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="filter" type="button">Show more deals</button></div>
 </main>
@@ -236,7 +237,7 @@ function render(list, {keepPage = false} = {}) {
   freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
   hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
-    dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
+    dealsEl.innerHTML = state.loading ? '<div class="empty"><strong>Checking the remaining deals…</strong></div>' : '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
     return;
   }
   dealsEl.innerHTML = list.slice(0, state.visibleCount).map(card).join('');
@@ -271,14 +272,22 @@ function localFilter(list) {
   return result;
 }
 
-let feedRequest = 0;
+let feedRequest = 0, feedController;
 async function load(sort = sortEl.value) {
   const request = ++feedRequest;
+  feedController?.abort();
+  const controller = feedController = new AbortController();
+  let shown = false;
   state.loading = true;
-  dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
-  try {
-    const payload = await fetchDealWindow(API, sort);
+  const status = document.querySelector('#feed-status');
+  status.hidden = false;
+  status.textContent = state.deals.length ? 'Refreshing deals…' : 'Loading deals…';
+  if (!state.deals.length) dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
+  const acceptPage = payload => {
     if (request !== feedRequest) return;
+    state.loading = !!payload.has_more;
+    status.hidden = !state.loading;
+    status.textContent = state.loading ? 'More deals loading…' : '';
     state.deals = payload.deals || [];
     const counts=payload.counts;
     state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
@@ -291,12 +300,22 @@ async function load(sort = sortEl.value) {
       if (values.includes(previous)) el.value = previous;
       if (id === 'category-filter') {el.closest('label').hidden = values.length === 0;el.closest('.browse-controls').hidden=values.length===0;}
     }
-    render(localFilter(state.deals));
+    render(localFilter(state.deals), {keepPage:shown});
+    shown = true;
+  };
+  try {
+    await fetchDealWindow(API, sort, fetch, {signal:controller.signal, onPage:acceptPage});
   } catch {
     if (request !== feedRequest) return;
-    document.querySelector('#feed-pagination').hidden = true;
-    dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
-    state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
+    if (shown || state.deals.length) {
+      status.hidden = false;
+      status.innerHTML = 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
+    } else {
+      status.hidden = true;
+      document.querySelector('#feed-pagination').hidden = true;
+      dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
+      state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
+    }
   } finally {
     if (request === feedRequest) state.loading = false;
   }
