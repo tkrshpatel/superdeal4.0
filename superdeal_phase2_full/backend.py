@@ -15,6 +15,7 @@ from uuid import uuid4
 import requests
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError, DuplicateKeyError
+from deal_exclusions import excluded_deal, EXCLUDED_DOMAIN
 
 LOG = logging.getLogger('superdeal.mongo')
 URL_RE = re.compile(r'https?://[^\s<>"\']+')
@@ -171,17 +172,31 @@ class Backend:
             # Concurrent duplicate insert; unique index is authoritative.
             result = None
         raw = self.db.raw.find_one({'channel': channel, 'message_id': str(message_id)})
+        blocked = excluded_deal(raw['text'])
+        exclusion = {'skip_reason': 'EXCLUDED_DOMAIN'} if blocked else {}
         try:
             self.db.pipeline_status.update_one({'raw_id': raw['_id']}, {'$setOnInsert': {
-                'raw_id': raw['_id'], 'status': 'PENDING', 'current_stage': 'TELEGRAM',
+                'raw_id': raw['_id'], 'status': 'SKIPPED' if blocked else 'PENDING', 'current_stage': 'TELEGRAM',
                 'products_extracted': 0, 'products_published': 0,
-                'created_at': now(), 'updated_at': now()}}, upsert=True)
+                'created_at': now(), 'updated_at': now(), **exclusion}}, upsert=True)
         except DuplicateKeyError:
             # Another worker initialized this status concurrently.
             pass
         if result is not None and result.upserted_id is not None:
             self.log(raw['_id'], 'TELEGRAM', 'INFO', 'INGESTED')
+            if blocked:
+                self.log(raw['_id'], 'TELEGRAM', 'INFO', 'DEAL_SKIPPED',
+                         details={'reason': 'EXCLUDED_DOMAIN', 'domain': EXCLUDED_DOMAIN})
         return raw['_id']
+
+    def _skip_excluded_deal(self, raw_id, stage):
+        self.db.pipeline_status.update_one(
+            {'raw_id': raw_id, 'status': {'$in': ['PENDING', 'PROCESSING']}},
+            {'$set': {'status': 'SKIPPED', 'current_stage': stage,
+                      'skip_reason': 'EXCLUDED_DOMAIN', 'products_extracted': 0,
+                      'products_published': 0, 'updated_at': now()}})
+        self.log(raw_id, stage, 'INFO', 'DEAL_SKIPPED',
+                 details={'reason': 'EXCLUDED_DOMAIN', 'domain': EXCLUDED_DOMAIN})
 
     def _transition(self, raw_id, stage):
         result = self.db.pipeline_status.update_one(
@@ -296,12 +311,18 @@ class Backend:
             raw = self.db.raw.find_one({'_id': raw_id})
             if raw is None:
                 raise ValueError('Missing raw message')
+            if excluded_deal(raw['text']):
+                self._skip_excluded_deal(raw_id, 'TELEGRAM')
+                return 0
             self.log(raw_id, stage, 'INFO', 'STAGE_STARTED')
             converted = self.converter(raw['text'])
             if not isinstance(converted, dict) or not isinstance(converted.get('response_text'), str) or not converted['response_text'].strip():
                 raise ValueError('Invalid EarnKaro conversion response')
             self.db.ek_raw.insert_one({'raw_id': raw_id, 'response_text': converted['response_text'],
                                        'response_payload': converted.get('response_payload'), 'created_at': now()})
+            if excluded_deal(converted['response_text']):
+                self._skip_excluded_deal(raw_id, stage)
+                return 0
             self.log(raw_id, stage, 'INFO', 'CONVERTED')
             # Experiment: collect merchant page evidence before LLM, without
             # rewriting any EarnKaro URL or changing the default pipeline.
