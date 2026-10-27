@@ -231,7 +231,7 @@ class Alerts:
                 if alert['day'] == day and alert['daily_count'] >= alert['daily_limit']:
                     continue
                 deals = []
-                for deal in backend.notification_candidates(at=at, window=timedelta(seconds=359)):
+                for deal in backend.notification_candidates(at=at, window=timedelta(hours=11, minutes=59)):
                     from public_presentation import shopper_text
                     title = shopper_text(deal.get('product_name') or '')
                     if not matches(alert['product'], title):
