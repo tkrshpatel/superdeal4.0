@@ -231,7 +231,7 @@ class Alerts:
                 if alert['day'] == day and alert['daily_count'] >= alert['daily_limit']:
                     continue
                 deals = []
-                for deal in backend.notification_candidates(at=at):
+                for deal in backend.notification_candidates(at=at, window=timedelta(seconds=359)):
                     from public_presentation import shopper_text
                     title = shopper_text(deal.get('product_name') or '')
                     if not matches(alert['product'], title):
@@ -294,7 +294,7 @@ def main():
         print(json.dumps(service.run_once(backend)), flush=True)
         if args.once:
             return
-        time.sleep(60)
+        time.sleep(6 * 60 * 60)
 
 
 if __name__ == '__main__':
