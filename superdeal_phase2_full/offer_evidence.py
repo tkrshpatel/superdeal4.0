@@ -274,10 +274,8 @@ def public_facts(facts):
 
 
 def is_hot(facts):
-    if facts.get('discount_kind')=='up_to':
-        return False
-    if facts.get('discount_kind')=='exact':
+    if facts.get('discount_kind') in ('exact','up_to'):
         pct=number(facts.get('discount_pct'),100)
-        return pct is not None and pct>75
+        return pct is not None and pct>=60
     price,mrp=number(facts.get('current_price')),number(facts.get('mrp'))
-    return price is not None and mrp is not None and price<mrp/4
+    return price is not None and mrp is not None and price<=mrp*0.4

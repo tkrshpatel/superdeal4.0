@@ -726,7 +726,7 @@ class Backend:
                 evidence = {'current_price': product.get('deal_price'), 'mrp': product.get('original_price')}
             result[str(fact['_id'])] = {
                 'published_at': published_at, 'click_count': clicks.get(str(fact['_id']), 0),
-                'hot': bool(published_at and current-timedelta(minutes=30) <= published_at <= current and is_hot(evidence)),
+                'hot': bool(published_at and current-timedelta(hours=4) <= published_at <= current and is_hot(evidence)),
                 'fresh_window_hours': 24, 'fresh': bool(published_at and published_at >= cutoff),
             }
         return result
@@ -764,7 +764,7 @@ class Backend:
             product = fact.get('product') or {}
             evidence = {'current_price': product.get('deal_price'), 'mrp': product.get('original_price')}
         return {'published_at': published_at, 'click_count': clicks,
-                'hot': bool(published_at and now() - timedelta(minutes=30) <= published_at <= now() and is_hot(evidence)), 'fresh_window_hours': 24,
+                'hot': bool(published_at and now() - timedelta(hours=4) <= published_at <= now() and is_hot(evidence)), 'fresh_window_hours': 24,
                 'fresh': bool(published_at and published_at >= cutoff)}
 
     def affiliate_destination(self, deal_id):

@@ -56,17 +56,17 @@ test('hot uses strict unrounded discount and requires a valid price pair',async(
 });
 
 const sourceFacts=(overrides={})=>({offer_facts:{version:1,current_price:null,mrp:null,discount_pct:null,discount_kind:null,conditional_offers:[],...overrides}});
-test('exact source discount survives absent price/MRP and qualifies for HOT above 75',async()=>{
+test('exact source discount survives absent price/MRP and qualifies for HOT at 60 or above',async()=>{
   const {isHotDeal}=await import('../src/deal-facts.js');
   const d={...sourceFacts({discount_pct:80,discount_kind:'exact'}),last_seen_at:new Date().toISOString()};
   assert.deepEqual(priceFacts(d),{current:null,mrp:null,saving:null,discount:80});
   assert.equal(isHotDeal(d),true);
   assert.equal(isHotDeal(sourceFacts({discount_pct:50,discount_kind:'exact'})),false);
 });
-test('up-to discount displays as an offer but never qualifies as HOT',async()=>{
+test('up-to discount retains its label and qualifies as HOT at 60 or above',async()=>{
   const {isHotDeal}=await import('../src/deal-facts.js');
-  const d=sourceFacts({discount_pct:80,discount_kind:'up_to'});
-  assert.equal(priceFacts(d).discount,80);assert.equal(priceFacts(d).saving,null);assert.equal(isHotDeal(d),false);
+  const d={...sourceFacts({discount_pct:80,discount_kind:'up_to'}),last_seen_at:new Date().toISOString()};
+  assert.equal(priceFacts(d).discount,80);assert.equal(priceFacts(d).saving,null);assert.equal(isHotDeal(d),true);
 });
 test('authoritative empty evidence blocks invented legacy model values',()=>{
   const d={current_price:1,mrp:1000,discount_pct:99,...sourceFacts()};
@@ -83,15 +83,25 @@ test('explicit monetary saving does not manufacture an original price',()=>{
   assert.deepEqual(f,{current:1000,mrp:null,saving:500,discount:null});
 });
 
-test('HOT requires a recent known timestamp and strictly more than 75 percent',async()=>{
+test('HOT requires a known timestamp within four hours and at least 60 percent',async()=>{
   const {isHotDeal}=await import('../src/deal-facts.js');
   const base={current_price:249,mrp:1000};
   const check=(minutes,extra={})=>isHotDeal({...base,last_seen_at:new Date(Date.now()-minutes*60000).toISOString(),...extra});
   assert.equal(check(1),true);
   assert.equal(check(29),true);
-  assert.equal(check(31),false);
+  assert.equal(check(239),true);
+  assert.equal(check(241),false);
   assert.equal(check(-1),false);
-  assert.equal(check(1,{current_price:250}),false);
-  assert.equal(check(1,{current_price:251}),false);
+  assert.equal(check(1,{current_price:400}),true);
+  assert.equal(check(1,{current_price:400.01}),false);
   assert.equal(isHotDeal(base),false);
+});
+
+
+test('HOT accepts exactly 60 percent advertised savings but rejects invalid percentages',async()=>{
+  const {isHotDeal}=await import('../src/deal-facts.js');
+  for(const kind of ['exact','up_to']) {
+    const check=pct=>isHotDeal({...sourceFacts({discount_kind:kind,discount_pct:pct}),last_seen_at:new Date().toISOString()});
+    assert.equal(check(60),true);assert.equal(check(59.99),false);assert.equal(check(101),false);
+  }
 });

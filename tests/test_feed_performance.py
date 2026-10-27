@@ -24,7 +24,7 @@ def test_batch_metadata_matches_individual_cards_and_keeps_publication_gate():
         db.pipeline_status.insert_one({
             'raw_id': raw, 'publication_id': 'active' if i != 46 else 'replaced',
             'status': 'PUBLISHED' if i != 47 else 'PENDING',
-            'published_at': current-timedelta(minutes=i),
+            'published_at': current-timedelta(minutes=i*10),
         })
         db.deal_clicks.insert_many([
             {'deal_id': str(oid), 'clicked_at': current-timedelta(minutes=5)},
@@ -39,6 +39,8 @@ def test_batch_metadata_matches_individual_cards_and_keeps_publication_gate():
             assert facts.call_count == statuses.call_count == clicks.call_count == 1
         assert result == {key: value for key, value in expected.items() if value is not None}
         assert result[ids[0]]['hot'] is True
+        assert result[ids[24]]['hot'] is True  # Exactly four hours.
+        assert result[ids[25]]['hot'] is False
         assert result[ids[31]]['hot'] is False
         assert all(value['click_count'] == 1 for value in result.values())
         assert ids[46] not in result and ids[47] not in result

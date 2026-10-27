@@ -134,10 +134,10 @@ test('old coupon excerpts render FT without exposing providers or channel metada
 });
 
 
-test('hot badge, count and filter use fresh discounts above 75 percent',async()=>{
+test('hot badge, count and filter include recent up-to savings at 60 percent',async()=>{
   const dom=await setup(), w=dom.window, d=w.document;
   w.fetch=async()=>({ok:true,json:async()=>({deals:[
-    {id:'hot',product_name:'Hot product',merchant:'Amazon',current_price:249,mrp:1000,last_seen_at:new Date().toISOString()},
+    {id:'hot',product_name:'Hot product',merchant:'Amazon',offer_facts:{version:1,current_price:null,mrp:null,discount_pct:60,discount_kind:'up_to'},last_seen_at:new Date(Date.now()-3*3600000).toISOString()},
     {id:'half',product_name:'Half price',merchant:'Amazon',current_price:500,mrp:1000,click_count:100},
     {id:'missing',product_name:'Unknown saving',merchant:'Amazon',current_price:299,discount_pct:90}
   ]})});
