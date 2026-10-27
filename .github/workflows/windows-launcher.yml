@@ -2,10 +2,10 @@ name: Windows desktop launcher
 on:
   push:
     branches: [main, 'phase-*']
-    paths: ['scripts/*pipeline*', 'scripts/Start-SuperDeals.bat', 'tests/test_windows_pipeline_launcher.py', '.github/workflows/windows-launcher.yml']
+    paths: ['scripts/*pipeline*', 'scripts/Start-SuperDeals.bat', 'tests/test_windows_pipeline_launcher.py', 'tests/test_scheduled_notifications.py', 'superdeal_phase2_full/notification_worker.py', 'superdeal_phase2_full/notifications.py', '.github/workflows/windows-launcher.yml']
   pull_request:
     branches: [main]
-    paths: ['scripts/*pipeline*', 'scripts/Start-SuperDeals.bat', 'tests/test_windows_pipeline_launcher.py', '.github/workflows/windows-launcher.yml']
+    paths: ['scripts/*pipeline*', 'scripts/Start-SuperDeals.bat', 'tests/test_windows_pipeline_launcher.py', 'tests/test_scheduled_notifications.py', 'superdeal_phase2_full/notification_worker.py', 'superdeal_phase2_full/notifications.py', '.github/workflows/windows-launcher.yml']
 permissions:
   contents: read
 jobs:
@@ -17,7 +17,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: python -m pip install pytest
+      - run: python -m pip install pytest pymongo mongomock python-dotenv requests certifi
       - name: Parse scripts with Windows PowerShell
         shell: powershell
         run: |
@@ -28,4 +28,4 @@ jobs:
             if ($parseErrors.Count) { throw ($parseErrors | Out-String) }
           }
       - name: Credential isolation and real Windows mutex tests
-        run: python -m pytest tests/test_windows_pipeline_launcher.py -q
+        run: python -m pytest tests/test_windows_pipeline_launcher.py tests/test_scheduled_notifications.py tests/test_notification_intake.py -q

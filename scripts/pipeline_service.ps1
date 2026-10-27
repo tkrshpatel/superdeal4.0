@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][ValidateSet('api','frontend','worker','tunnel','ollama')][string]$Service)
+param([Parameter(Mandatory=$true)][ValidateSet('api','frontend','worker','tunnel','ollama','notifications')][string]$Service)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $projectRoot

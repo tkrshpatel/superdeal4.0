@@ -123,3 +123,67 @@ From a separate device/network:
 Then test real browser behavior under CSP, image loading, search/filter/pagination, exact Shop links, alert signup/confirmation/unsubscribe, Telegram raw capture and worker publication. Inspect actual firewall exposure, TLS certificate, edge limits and recovery after restart. Do not call the site production-cleared until these machine/domain checks pass.
 
 References: https://www.godaddy.com/en-in/help/change-my-domain-nameservers-664 ; https://developers.cloudflare.com/tunnel/get-started/ ; https://developers.cloudflare.com/tunnel/features/locally-managed-tunnels/as-a-service/windows/ ; https://caddyserver.com/docs/caddyfile/directives/reverse_proxy ; https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html
+
+### Scheduled product notifications
+
+The new `notification_worker.py` reads consented `saved`/`active` requests from
+`notification_table`. New requests are marked `active` with `delivery_enabled=True` when delivery is
+enabled, otherwise `saved`. Existing consented saved requests are also eligible
+when the worker is explicitly enabled. Historical `delivery_enabled=False` and
+`email_verified=False` fields are not delivery gates. No verification email is sent.
+Expiry is the latest submission time (`ds`) plus the requested number of days.
+Existing saved requests without `expires_at` use that same calculation. Stopped,
+non-consented and expired requests are excluded. No deal records are rewritten.
+
+Add these values to the root `.env`, preserving existing API/Mongo settings:
+
+```dotenv
+SUPERDEAL_NOTIFICATIONS_ENABLED=1
+SUPERDEAL_EMAIL_MODE=smtp
+SUPERDEAL_EMAIL_FROM=SuperDeals <superdeals.helpdesk@gmail.com>
+SUPERDEAL_SMTP_HOST=smtp.gmail.com
+SUPERDEAL_SMTP_PORT=587
+SUPERDEAL_SMTP_USER=superdeals.helpdesk@gmail.com
+SUPERDEAL_SMTP_PASSWORD=YOUR_GMAIL_APP_PASSWORD
+```
+
+Use a Gmail app password with 2-Step Verification enabled, never your normal
+Google password. Keep it private and out of Git. STARTTLS certificate validation
+remains enabled. Public URL must be the existing HTTPS origin.
+
+Restart the desktop launcher after pulling. It opens a separate `notifications`
+service window using the worker Mongo credentials and reuses an existing worker.
+It does not start the legacy `notifications.py` email loop. If the Telegram worker
+is already running, the launcher may still ask for the saved WORKER Mongo password
+to start this additional service. The existing readWrite worker account can create
+`notification_deliveries` and `notification_worker_state`; API permissions do not change.
+
+The worker polls its durable Mongo schedule every minute and runs immediately the
+first time, then every 12 hours. Restarting does not reset an existing schedule.
+Only committed PUBLISHED deals in the preceding 11 hours 59 minutes are considered;
+there is intentionally a one-minute uncovered gap between cycles. Downtime does
+not trigger a historical replay. A single-word request requires one whole matching
+word, otherwise two distinct matching words (case-insensitive, punctuation and
+letter/digit boundaries normalized). No fuzzy matching or variant restrictions.
+For example, `iPhone 17 Pro` also matches `iPhone 17` under this requested rule.
+
+One digest email per request per scan includes all new matching deals. Daily limits
+count emails per request using India calendar days, not the number of deals in an
+email. The 12-hour cadence means a maximum of two emails/day even for limits of 3
+or 5. Reservations count against quota when SMTP fails because acceptance can be
+uncertain. Delivery keys permanently deduplicate each request/deal pair, including
+across restarts. `failed_or_unknown` and crash-left `reserved` entries require manual
+review; they are not automatically retried. SMTP cannot guarantee exactly-once
+receipt, so the worker prefers avoiding repeat emails over retrying uncertain sends.
+No recipient addresses, message contents or exception messages are printed to logs.
+
+Emails instruct recipients to reply STOP. To process a STOP request, run this from
+a private PowerShell window using the same WORKER Mongo URI override as the pipeline:
+
+```powershell
+.\.venv\Scripts\python.exe superdeal_phase2_full\notification_worker.py --stop-email buyer@example.com
+```
+
+This stops all requests for that exact address. Do not run the legacy email worker.
+To pause future delivery, close only the notifications service window and set
+`SUPERDEAL_NOTIFICATIONS_ENABLED=0`. Existing intake continues saving requests.

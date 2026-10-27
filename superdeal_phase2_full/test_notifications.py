@@ -15,6 +15,12 @@ AT = datetime(2026, 10, 25, 6, tzinfo=timezone.utc)
 REQUEST = {'product': 'iPhone 17 Pro', 'email': 'buyer@example.com', 'daily_limit': 2, 'days': 7, 'consent': True}
 
 
+@pytest.fixture(autouse=True)
+def fixed_mongo_ttl_clock(monkeypatch):
+    # mongomock TTL uses wall time even when the service receives an explicit at.
+    monkeypatch.setattr(mongomock, 'utcnow', lambda: AT.replace(tzinfo=None))
+
+
 class Preview:
     origin = 'https://superdeals.example'
     mode = 'dry-run'

@@ -1,4 +1,4 @@
-"""Windows desktop startup. No config rewrites, database maintenance, or email worker."""
+"""Windows desktop startup. No config rewrites, database maintenance, or implicit email delivery."""
 from __future__ import annotations
 import argparse
 from contextlib import contextmanager
@@ -50,8 +50,11 @@ def service_environment(service, source, password=None):
     common = {'PATH','PATHEXT','SYSTEMROOT','WINDIR','COMSPEC','TEMP','TMP','USERPROFILE',
               'APPDATA','LOCALAPPDATA','PROGRAMDATA','PSMODULEPATH','SSL_CERT_FILE','SSL_CERT_DIR'}
     result = {k:v for k,v in source.items() if k.upper() in common}
-    if service in ('api', 'frontend', 'worker'):
+    if service in ('api', 'frontend', 'worker', 'notifications'):
         result.update({k:v for k,v in source.items() if k.startswith(('SUPERDEAL_', 'MONGODB_')) and k != SECRET})
+    if service in ('worker', 'notifications'):
+        if password:
+            result[SECRET] = password
     if service == 'worker':
         result.update({k:v for k,v in source.items() if k.startswith(('TELEGRAM_', 'OLLAMA_')) or
                        k in {'API_KEY_EARNKARO','HTTP_PROXY','HTTPS_PROXY','NO_PROXY','REQUESTS_CA_BUNDLE'}})
@@ -67,9 +70,9 @@ def service_environment(service, source, password=None):
 def process_matches(service, process, root=ROOT, tunnel='superdeals'):
     name = (process.get('Name') or '').lower()
     command = (process.get('CommandLine') or '').lower()
-    if service == 'worker' and name in ('python.exe','pythonw.exe'):
-        return ('superdeal_local_live_worker.py' in command or
-                ('start_pipeline.py' in command and '--service worker' in command and str(root).lower() in command))
+    if service in ('worker', 'notifications') and name in ('python.exe','pythonw.exe'):
+        return ((service == 'worker' and 'superdeal_local_live_worker.py' in command) or
+                ('start_pipeline.py' in command and ('--service '+service) in command and str(root).lower() in command))
     if service == 'tunnel' and name == 'cloudflared.exe':
         return 'tunnel' in command and 'run' in command and tunnel.lower() in command
     return False
@@ -139,6 +142,13 @@ def configuration():
             raise StartupError('Missing executable: ' + name + '. Open a new Windows session after installing it.')
     if not (Path.home() / '.cloudflared' / 'config.yml').is_file():
         raise StartupError('The existing Cloudflare config.yml is missing.')
+    if os.getenv('SUPERDEAL_NOTIFICATIONS_ENABLED') == '1':
+        from notifications import Mailer
+        try:
+            if Mailer().mode != 'smtp':
+                raise ValueError('SMTP required')
+        except ValueError:
+            raise StartupError('Notifications are enabled but SMTP settings are incomplete. Check the private root .env.') from None
     host = os.getenv('SUPERDEAL_API_HOST','127.0.0.1')
     address = '['+host+']' if ':' in host else host
     return {
@@ -208,11 +218,11 @@ class MonitorReady:
         return getattr(self.stream, name)
 
 
-def worker_ready(nonce, path=READY_FILE):
+def worker_ready(nonce, path=READY_FILE, service="worker"):
     try:
         saved = json.loads(path.read_text(encoding='utf-8'))
         return saved.get('nonce') == nonce and any(p.get('ProcessId') == saved.get('pid')
-            and process_matches('worker', p) for p in processes())
+            and process_matches(service, p) for p in processes())
     except (OSError, ValueError, TypeError):
         return False
 
@@ -315,12 +325,13 @@ def launch():
     config = configuration()
     with service_lock('launcher'):
         worker_exists = running('worker')
-        if not worker_exists and not password:
+        notify_needed = os.getenv('SUPERDEAL_NOTIFICATIONS_ENABLED') == '1' and not running('notifications')
+        if (not worker_exists or notify_needed) and not password:
             raise StartupError('Start using Start-SuperDeals.bat so the hidden worker-password prompt is shown.')
         ensure_mongo()
         wait_until(lambda: mongo_ready(os.environ.get('MONGODB_URI','mongodb://127.0.0.1:27017')), 'MongoDB replica set')
         verify_mongo(os.environ.get('MONGODB_URI','mongodb://127.0.0.1:27017'), config['database'])
-        if not worker_exists:
+        if not worker_exists or notify_needed:
             verify_mongo(worker_uri(os.environ['MONGODB_URI'], password, config['database'],
                 os.getenv('SUPERDEAL_WORKER_MONGO_USER','superdeals_worker')), config['database'], worker=True)
         ensure_http('api', config['api'])
@@ -344,25 +355,31 @@ def launch():
             ensure_ollama(config)
             nonce = secrets.token_hex(16)
             open_service('worker', password=password, extra_env={NONCE:nonce})
-            password = None
             wait_until(lambda: worker_ready(nonce), 'Telegram listening with publication enabled', seconds=60)
+        if notify_needed:
+            nonce = secrets.token_hex(16)
+            open_service('notifications', password=password, extra_env={NONCE:nonce})
+            wait_until(lambda: worker_ready(nonce, ROOT/'data'/'launcher-notifications-ready.json', 'notifications'),
+                       'Notification worker', seconds=60)
+        password = None
         wait_until(lambda: healthy(config['public']+'/health'), 'public HTTPS website')
-        print('\nOpen '+config['public']+'\nKeep the service windows open. No email worker or database cleanup was run.', flush=True)
+        print('\nOpen '+config['public']+'\nKeep the service windows open. Notification delivery starts only when explicitly enabled in .env.', flush=True)
     return 0
 
 
 def run_service(service):
     os.chdir(ROOT)
     with service_lock(service):
-        if service in ('api', 'worker'):
+        if service in ('api', 'worker', 'notifications'):
             from runtime_env import load_env
             load_env()
-            if service == 'worker':
+            if service in ('worker', 'notifications'):
                 password = os.environ.pop(SECRET, '')
                 os.environ['MONGODB_URI'] = worker_uri(os.environ['MONGODB_URI'], password,
                     os.getenv('MONGODB_DATABASE','superdeal'), os.getenv('SUPERDEAL_WORKER_MONGO_USER','superdeals_worker'))
                 password = None
-                target, args = ROOT/'superdeal_local_live_worker.py', ['--confirm-monitor']
+                target, args = ((ROOT/'superdeal_phase2_full'/'notification_worker.py', []) if service == 'notifications' else
+                                (ROOT/'superdeal_local_live_worker.py', ['--confirm-monitor']))
             else:
                 target, args = ROOT/'superdeal_phase2_full'/'api.py', []
             sys.argv = [str(target), *args]
@@ -386,7 +403,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true')
     parser.add_argument('--worker-running', action='store_true')
-    parser.add_argument('--service', choices=['api','frontend','worker','tunnel','ollama'])
+    parser.add_argument('--service', choices=['api','frontend','worker','tunnel','ollama','notifications'])
     args = parser.parse_args()
     if sys.platform != 'win32':
         print('This launcher runs on your Windows hosting PC.')
@@ -401,7 +418,7 @@ def main():
         if args.worker_running:
             from runtime_env import load_env
             load_env()
-            return 0 if running('worker') else 1
+            return 0 if running('worker') and (os.getenv('SUPERDEAL_NOTIFICATIONS_ENABLED') != '1' or running('notifications')) else 1
         return launch()
     except KeyboardInterrupt:
         return 130

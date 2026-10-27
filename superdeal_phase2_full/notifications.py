@@ -86,7 +86,7 @@ class AlertBudget:
 
 
 class NotificationRequests:
-    """Website intake only: store preferences without queuing or sending email."""
+    """Store consented preferences; the separate opt-in worker handles delivery."""
     def __init__(self, db):
         self.collection = db.notification_table
 
@@ -97,14 +97,16 @@ class NotificationRequests:
     def save(self, data, *, at=None):
         product, email, cap, days = validate_request(data)
         at = at or datetime.now(UTC)
+        enabled = os.getenv('SUPERDEAL_NOTIFICATIONS_ENABLED') == '1'
         key = digest(email + '\n' + ' '.join(tokens(product)))
         # Repeated submits update the same request instead of creating duplicates.
         self.collection.update_one({'_id': key}, {
             '$set': {'ds': at, 'updated_at': at, 'product': product, 'email': email,
-                     'daily_limit': cap, 'days': days, 'status': 'saved',
+                     'daily_limit': cap, 'days': days, 'status': 'active' if enabled else 'saved',
+                     'expires_at': at + timedelta(days=days),
                      'consent': True, 'consent_at': at,
                      'consent_version': 'deal-alerts-v1', 'source': 'website',
-                     'email_verified': False, 'delivery_enabled': False},
+                     'email_verified': False, 'delivery_enabled': enabled},
             '$setOnInsert': {'created_at': at},
             '$inc': {'submission_count': 1},
         }, upsert=True)
