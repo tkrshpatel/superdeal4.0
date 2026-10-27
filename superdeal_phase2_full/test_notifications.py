@@ -42,14 +42,28 @@ def activate(instance, request=None):
     return instance.db.deal_alerts.find_one({})
 
 
-@pytest.mark.parametrize('title,expected', [
-    ('Apple iPhone17 Pro 256GB Titanium', True), ('iPhone 17 Pro Max 256GB', False),
-    ('iPhone 16 Pro', False), ('Case for iPhone 17 Pro', False),
-    ('iPhone 17 Pro screen protector', False), ('iPhone 17', False),
-    ('Renewed Apple iPhone 17 Pro', False), ('Apple iPhone 17 Pro 512 GB', True),
+@pytest.mark.parametrize('query,title,expected', [
+    ('Nike', 'Nike Running Shoes', True),
+    ('Nike', 'Adidas Running Shoes', False),
+    ('Nike Shoes', 'Nike Gym Shoes', True),
+    ('Nike Shoes', 'Adidas Sports Shoes', False),
+    ('Nike Running Shoes', 'Nike Training Shoes', True),
+    ('Samsung Galaxy S24', 'Samsung Galaxy S25', True),
+    ('iPhone', 'iPhone 17 Pro', True),
+    ('iPhone 17 Pro', 'iPhone 16 Pro', True),
+    ('iPhone 17 Pro', 'iPhone 17 Pro Max', True),
+    ('iPhone 17 Pro', 'iPhone 17', True),
+    ('iPhone 17 Pro', 'Case for iPhone 17 Pro', True),
+    ('iPhone 17 Pro', 'Apple MacBook Air', False),
+    ('Nike Nike Shoes', 'Nike gym bag', False),
+    ('Nike Nike Shoes', 'Nike shoes', True),
+    ('NIKE shoes', 'nike Training SHOES', True),
+    ('Pro', 'Productivity Suite', False),
+    ('', 'Nike Shoes', False),
+    ('Nike', '', False),
 ])
-def test_specific_model_matching(title, expected):
-    assert matches('iPhone 17 Pro', title) is expected
+def test_notification_word_threshold(query, title, expected):
+    assert matches(query, title) is expected
 
 
 @pytest.mark.parametrize('patch', [{'consent': False}, {'daily_limit': True}, {'days': 31}, {'email': 'x\r\nBcc: x@y.com'}, {'product': '<img src=x>'}, {'product': '---'}, {'days': '7'}, {'daily_limit': 100}, {'extra': 'ignored?'}])
