@@ -297,3 +297,36 @@ footer.site-footer{display:flex;flex-direction:column;gap:10px;color:#71776b;fon
 @media(max-width:600px){footer.site-footer{font-size:11px}.site-footer .footer-heading{flex-direction:column;gap:6px}}
 
 .feed-more-button[data-loading="true"] .feed-more-label{font-size:15px}
+
+
+/* Android supplies real system-bar/cutout insets. Older WebViews are padded
+   natively by Capacitor and receive zero CSS insets, avoiding double spacing. */
+html.native-app{
+  color-scheme:light;
+  --app-safe-top:var(--safe-area-inset-top,env(safe-area-inset-top,0px));
+  --app-safe-right:var(--safe-area-inset-right,env(safe-area-inset-right,0px));
+  --app-safe-bottom:var(--safe-area-inset-bottom,env(safe-area-inset-bottom,0px));
+  --app-safe-left:var(--safe-area-inset-left,env(safe-area-inset-left,0px));
+}
+.native-app body{padding-left:var(--app-safe-left);padding-right:var(--app-safe-right);padding-bottom:calc(24px + var(--app-safe-bottom))}
+.native-app .topbar{height:calc(64px + var(--app-safe-top));padding-top:calc(10px + var(--app-safe-top));padding-bottom:10px;background:#f8f8f5}
+.native-app .alert-overlay,.native-app .detail{padding-top:calc(12px + var(--app-safe-top));padding-right:calc(12px + var(--app-safe-right));padding-bottom:calc(12px + var(--app-safe-bottom));padding-left:calc(12px + var(--app-safe-left))}
+.native-app .alert-sheet,.native-app .detail-sheet{max-height:calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - 24px)}
+.native-app .store-popover{left:var(--app-safe-left);right:var(--app-safe-right);bottom:var(--app-safe-bottom);padding-bottom:20px;max-height:calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - 24px)}
+@media(max-width:720px){
+  .native-app .brand-mark .header-logo{width:158px}
+  .native-app main>.hero{min-height:0;padding:24px 0}
+  .native-app .hero h1{font-size:clamp(34px,9vw,44px);line-height:1.06;letter-spacing:-1.8px;margin:12px 0 16px}
+  .native-app .hero h1 span{padding:2px 8px 5px;border-radius:9px}
+  .native-app .hero p{font-size:14px;line-height:1.55;max-width:38ch}
+  .native-app .hero-stats{margin-top:20px;border-radius:18px;box-shadow:0 5px 18px #26301705}
+  .native-app .hero-stats div{padding:14px 16px}
+  .native-app .hero-stats strong{font-size:27px}
+  .native-app .hero-stats span{font-size:11px;line-height:1.4}
+  .native-app .search-wrap{height:50px;border-radius:15px;box-shadow:0 4px 16px #26301706}
+  .native-app .search-wrap input{font-size:14px}
+  .native-app .deal-alert-feature{border-radius:15px}
+  .native-app .alert-feature-copy strong{font-size:13px}
+  .native-app .filter-panel{padding:16px;border-radius:18px}
+  .native-app .filter{min-height:40px;padding:9px 13px;font-size:12px}
+}

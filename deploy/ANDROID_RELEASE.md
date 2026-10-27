@@ -56,8 +56,8 @@ The Gradle project optionally reads these process environment values:
 - `SUPERDEAL_UPLOAD_STORE_PASSWORD`: keystore password.
 - `SUPERDEAL_UPLOAD_KEY_ALIAS`: upload key alias.
 - `SUPERDEAL_UPLOAD_KEY_PASSWORD`: key password.
-- `SUPERDEAL_ANDROID_VERSION_CODE`: positive increasing integer, default 1.
-- `SUPERDEAL_ANDROID_VERSION_NAME`: user-visible version, default 1.0.0.
+- `SUPERDEAL_ANDROID_VERSION_CODE`: positive increasing integer, default 2.
+- `SUPERDEAL_ANDROID_VERSION_NAME`: user-visible version, default 2.0.0.
 
 Set passwords using PowerShell `Read-Host -AsSecureString`, converting them only
 into the current process environment, then remove those environment variables when
@@ -105,3 +105,16 @@ Policy references (checked 27 October 2026):
 The PC, MongoDB, API, Caddy and Cloudflare Tunnel remain the production backend.
 A Play Store listing does not host those services: if the PC sleeps or crashes,
 the installed app cannot fetch live deals or save notification requests.
+
+
+### Android 1.0.1 layout
+
+SystemBars supplies live system-bar/display-cutout insets and dark system icons
+for the app's light background. The sticky header includes the top inset; bottom
+spacing, dialog bounds and landscape side insets use the same values. Capacitor
+pads older WebViews natively and reports zero CSS insets, avoiding double padding.
+The native hero, counters and filters are more compact; desktop layout is unchanged.
+The APK includes the 60%-or-more / four-hour Hot rule, including up-to offers.
+The Android workflow tests logo clearance and system-icon contrast in portrait and
+landscape on an emulator. Device-specific cutouts and keyboard behavior still need
+verification on the owner's phone.

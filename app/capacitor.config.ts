@@ -13,6 +13,12 @@ const config: CapacitorConfig = {
     allowMixedContent: false,
   },
   plugins: {
+    SystemBars: {
+      insetsHandling: 'css',
+      initialViewportFitValueHint: 'cover',
+      style: 'LIGHT',
+      hidden: false,
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchFadeOutDuration: 0,
