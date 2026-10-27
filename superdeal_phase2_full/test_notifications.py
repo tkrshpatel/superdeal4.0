@@ -28,7 +28,7 @@ def test_dispatch_disabled_by_default(monkeypatch):
     assert instance.mailer.messages == []
 
 
-AT = datetime(2026, 10, 25, 6, tzinfo=timezone.utc)
+AT = datetime(2030, 10, 25, 6, tzinfo=timezone.utc)
 REQUEST = {'product': 'iPhone 17 Pro', 'email': 'buyer@example.com', 'daily_limit': 2, 'days': 7, 'consent': True}
 
 
