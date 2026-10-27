@@ -1,3 +1,4 @@
+import { API_BASE, apiFetch } from './api-bridge.js';
 import { fetchDealWindow } from './deal-feed.js';
 import { mountDealAlerts } from './deal-alerts.js';
 import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
@@ -8,7 +9,6 @@ import { Browser } from '@capacitor/browser';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 document.documentElement.classList.toggle('native-app', IS_NATIVE);
-const API_BASE = (globalThis.__SUPERDEAL_API__ || '').replace(/\/$/, '');
 const API = (path) => `${API_BASE}${path}`;
 
 function openDeal(id) {
@@ -115,6 +115,7 @@ app.innerHTML = `
 <footer class="site-footer" aria-label="Copyright and disclaimer">
   <div class="footer-heading">
     <span>© 2026 SuperDeals. All rights reserved.</span>
+    <a href="/privacy.html">Privacy</a>
     <a href="mailto:superdeals.helpdesk@gmail.com">Contact: superdeals.helpdesk@gmail.com</a>
   </div>
   <p><strong>Disclaimer:</strong> SuperDeals shares deal information and links to third-party retailers. Prices, availability, discounts, coupon eligibility and delivery charges may change. Check prices and offer conditions on the retailer’s website before buying. Purchases, payments, delivery, returns and warranties are handled by the retailer.</p>
@@ -314,7 +315,7 @@ async function load(sort = sortEl.value) {
     shown = true;
   };
   try {
-    await fetchDealWindow(API, sort, fetch, {signal:controller.signal, onPage:acceptPage});
+    await fetchDealWindow(API, sort, apiFetch, {signal:controller.signal, onPage:acceptPage});
   } catch {
     if (request !== feedRequest) return;
     if (shown || state.deals.length) {
@@ -492,7 +493,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(
   } });
 document.querySelector('.brand-mark').addEventListener('click', e => { e.preventDefault(); setFilter('latest'); });
 
-mountDealAlerts({api: API, product: () => state.query});
+mountDealAlerts({api: API, fetcher: apiFetch, product: () => state.query});
 
 if (!IS_NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
 if (IS_NATIVE) SplashScreen.hide().catch(()=>{});

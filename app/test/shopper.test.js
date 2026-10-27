@@ -17,6 +17,8 @@ async function setup(fail=false) {
   w.displayRetailer = displayRetailer;
   w.Capacitor = {isNativePlatform:()=>false};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
+  w.API_BASE = '';
+  w.apiFetch = (...args) => w.fetch(...args);
   w.open = url => {w.lastOpened=url;};
   w.eval(fs.readFileSync('src/deal-feed.js','utf8').replace('export async function', 'async function'));
   w.eval(fs.readFileSync('src/deal-alerts.js','utf8').replace('export function', 'function'));

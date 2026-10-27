@@ -7,8 +7,8 @@ android {
         applicationId "com.superdeal.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode (System.getenv("SUPERDEAL_ANDROID_VERSION_CODE") ?: "1").toInteger()
+        versionName (System.getenv("SUPERDEAL_ANDROID_VERSION_NAME") ?: "1.0.0")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +16,25 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Upload keystore stays on the owner's PC or in private CI secrets.
+    def signingValues = ['SUPERDEAL_UPLOAD_STORE_FILE', 'SUPERDEAL_UPLOAD_STORE_PASSWORD',
+                         'SUPERDEAL_UPLOAD_KEY_ALIAS', 'SUPERDEAL_UPLOAD_KEY_PASSWORD'].collect { System.getenv(it) }
+    if (signingValues.any { it } && !signingValues.every { it }) {
+        throw new GradleException('All four SUPERDEAL_UPLOAD signing settings are required.')
+    }
+    signingConfigs {
+        if (signingValues.every { it }) {
+            upload {
+                storeFile file(signingValues[0])
+                storePassword signingValues[1]
+                keyAlias signingValues[2]
+                keyPassword signingValues[3]
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingValues.every { it }) signingConfig signingConfigs.upload
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

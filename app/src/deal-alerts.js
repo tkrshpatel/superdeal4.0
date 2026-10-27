@@ -1,5 +1,5 @@
 // The public client never receives subscriber lists or private stored records.
-export function mountDealAlerts({ api, product = () => '' }) {
+export function mountDealAlerts({ api, product = () => '', fetcher = (...args) => fetch(...args) }) {
   const overlay = document.createElement('div');
   overlay.className = 'alert-overlay';
   overlay.hidden = true;
@@ -58,7 +58,7 @@ export function mountDealAlerts({ api, product = () => '' }) {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   });
   async function post(path, payload) {
-    const response = await fetch(api(path), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), cache: 'no-store' });
+    const response = await fetcher(api(path), { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload), cache: 'no-store' });
     let result;
     try { result = await response.json(); }
     catch { throw new Error('The alert API did not return JSON. Restart the API and frontend, then try again.'); }
