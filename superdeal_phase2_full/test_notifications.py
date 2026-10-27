@@ -238,7 +238,7 @@ def test_broad_product_matches_headphones_deal():
     assert matches('Headphones', 'Sony Wireless Headphones')
 
 
-def test_notification_window_is_5_minutes_59_seconds():
+def test_notification_window_is_11_hours_59_minutes():
     from backend import Backend
     captured = []
     class Collection:
@@ -246,8 +246,8 @@ def test_notification_window_is_5_minutes_59_seconds():
             captured.append(pipeline)
             return []
     backend = Backend(type('DB', (), {'fact_table': Collection()})())
-    assert list(backend.notification_candidates(at=AT, window=timedelta(seconds=359))) == []
+    assert list(backend.notification_candidates(at=AT, window=timedelta(hours=11, minutes=59))) == []
     match = next(stage['$match']['_publication.published_at']
                  for stage in captured[0]
                  if '_publication.published_at' in stage.get('$match', {}))
-    assert match == {'$gte': AT - timedelta(seconds=359), '$lte': AT}
+    assert match == {'$gte': AT - timedelta(hours=11, minutes=59), '$lte': AT}
