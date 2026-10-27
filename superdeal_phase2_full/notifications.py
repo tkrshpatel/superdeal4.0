@@ -31,16 +31,16 @@ def tokens(text):
 
 
 def matches(query, title):
+    """Match one unique word for a one-word request, otherwise at least two.
+
+    Match normalized complete tokens only; duplicates never increase the score.
+    This intentionally allows broader model/accessory matches for initial alerts.
+    """
     wanted, actual = set(tokens(query)), set(tokens(title))
-    if not wanted or not wanted <= actual:
+    if not wanted:
         return False
-    # Prevent e.g. a Pro alert matching Pro Max or an accessory listing.
-    if (actual & ACCESSORIES) - wanted:
-        return False
-    variants = {'pro', 'max', 'plus', 'mini', 'ultra', 'air', 'lite', 'fe', 'se'}
-    if (actual & variants) - wanted:
-        return False
-    return True
+    required = min(2, len(wanted))
+    return len(wanted & actual) >= required
 
 
 def validate_request(data):
@@ -188,7 +188,9 @@ class Alerts:
             raise ValueError('This link is invalid or expired.')
 
     def run_once(self, backend, *, at=None):
-        """Reserved batches are never automatically resent after uncertain SMTP outcomes."""
+        """Dispatch is disabled unless explicitly enabled by the operator."""
+        if os.getenv('SUPERDEAL_ALERT_DISPATCH_ENABLED') != '1':
+            return {'confirmations': 0, 'batches': 0, 'failed': 0}
         test_at = at
         clock = (lambda: test_at) if test_at is not None else (lambda: datetime.now(UTC))
         at = clock()
@@ -229,7 +231,7 @@ class Alerts:
                 if alert['day'] == day and alert['daily_count'] >= alert['daily_limit']:
                     continue
                 deals = []
-                for deal in backend.notification_candidates(at=at):
+                for deal in backend.notification_candidates(at=at, window=timedelta(hours=11, minutes=59)):
                     from public_presentation import shopper_text
                     title = shopper_text(deal.get('product_name') or '')
                     if not matches(alert['product'], title):
@@ -292,7 +294,7 @@ def main():
         print(json.dumps(service.run_once(backend)), flush=True)
         if args.once:
             return
-        time.sleep(60)
+        time.sleep(12 * 60 * 60)
 
 
 if __name__ == '__main__':

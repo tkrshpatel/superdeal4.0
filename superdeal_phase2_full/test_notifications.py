@@ -11,7 +11,24 @@ import mongomock
 import pytest
 from notifications import Alerts, Mailer, matches, validate_request
 
-AT = datetime(2026, 10, 25, 6, tzinfo=timezone.utc)
+@pytest.fixture(autouse=True)
+def enable_dispatch_in_isolated_tests(monkeypatch):
+    # Tests use mongomock and a fake mailer, never real SMTP.
+    monkeypatch.setenv('SUPERDEAL_ALERT_DISPATCH_ENABLED', '1')
+
+
+def test_dispatch_disabled_by_default(monkeypatch):
+    monkeypatch.delenv('SUPERDEAL_ALERT_DISPATCH_ENABLED', raising=False)
+    instance = service()
+    instance.subscribe(REQUEST, at=AT)
+    assert instance.run_once(Deals([{'id': '1', 'product_name': 'iPhone 17 Pro'}]), at=AT) == {
+        'confirmations': 0, 'batches': 0, 'failed': 0
+    }
+    assert instance.db.alert_confirmations.find_one({})['state'] == 'queued'
+    assert instance.mailer.messages == []
+
+
+AT = datetime(2030, 10, 25, 6, tzinfo=timezone.utc)
 REQUEST = {'product': 'iPhone 17 Pro', 'email': 'buyer@example.com', 'daily_limit': 2, 'days': 7, 'consent': True}
 
 
@@ -42,14 +59,28 @@ def activate(instance, request=None):
     return instance.db.deal_alerts.find_one({})
 
 
-@pytest.mark.parametrize('title,expected', [
-    ('Apple iPhone17 Pro 256GB Titanium', True), ('iPhone 17 Pro Max 256GB', False),
-    ('iPhone 16 Pro', False), ('Case for iPhone 17 Pro', False),
-    ('iPhone 17 Pro screen protector', False), ('iPhone 17', False),
-    ('Renewed Apple iPhone 17 Pro', False), ('Apple iPhone 17 Pro 512 GB', True),
+@pytest.mark.parametrize('query,title,expected', [
+    ('Nike', 'Nike Running Shoes', True),
+    ('Nike', 'Adidas Running Shoes', False),
+    ('Nike Shoes', 'Nike Gym Shoes', True),
+    ('Nike Shoes', 'Adidas Sports Shoes', False),
+    ('Nike Running Shoes', 'Nike Training Shoes', True),
+    ('Samsung Galaxy S24', 'Samsung Galaxy S25', True),
+    ('iPhone', 'iPhone 17 Pro', True),
+    ('iPhone 17 Pro', 'iPhone 16 Pro', True),
+    ('iPhone 17 Pro', 'iPhone 17 Pro Max', True),
+    ('iPhone 17 Pro', 'iPhone 17', True),
+    ('iPhone 17 Pro', 'Case for iPhone 17 Pro', True),
+    ('iPhone 17 Pro', 'Apple MacBook Air', False),
+    ('Nike Nike Shoes', 'Nike gym bag', False),
+    ('Nike Nike Shoes', 'Nike shoes', True),
+    ('NIKE shoes', 'nike Training SHOES', True),
+    ('Pro', 'Productivity Suite', False),
+    ('', 'Nike Shoes', False),
+    ('Nike', '', False),
 ])
-def test_specific_model_matching(title, expected):
-    assert matches('iPhone 17 Pro', title) is expected
+def test_notification_word_threshold(query, title, expected):
+    assert matches(query, title) is expected
 
 
 @pytest.mark.parametrize('patch', [{'consent': False}, {'daily_limit': True}, {'days': 31}, {'email': 'x\r\nBcc: x@y.com'}, {'product': '<img src=x>'}, {'product': '---'}, {'days': '7'}, {'daily_limit': 100}, {'extra': 'ignored?'}])
@@ -205,3 +236,18 @@ def test_single_word_products_are_valid(name):
 
 def test_broad_product_matches_headphones_deal():
     assert matches('Headphones', 'Sony Wireless Headphones')
+
+
+def test_notification_window_is_11_hours_59_minutes():
+    from backend import Backend
+    captured = []
+    class Collection:
+        def aggregate(self, pipeline):
+            captured.append(pipeline)
+            return []
+    backend = Backend(type('DB', (), {'fact_table': Collection()})())
+    assert list(backend.notification_candidates(at=AT, window=timedelta(hours=11, minutes=59))) == []
+    match = next(stage['$match']['_publication.published_at']
+                 for stage in captured[0]
+                 if '_publication.published_at' in stage.get('$match', {}))
+    assert match == {'$gte': AT - timedelta(hours=11, minutes=59), '$lte': AT}
