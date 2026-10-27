@@ -31,16 +31,16 @@ def tokens(text):
 
 
 def matches(query, title):
+    """Match one unique word for a one-word request, otherwise at least two.
+
+    Match normalized complete tokens only; duplicates never increase the score.
+    This intentionally allows broader model/accessory matches for initial alerts.
+    """
     wanted, actual = set(tokens(query)), set(tokens(title))
-    if not wanted or not wanted <= actual:
+    if not wanted:
         return False
-    # Prevent e.g. a Pro alert matching Pro Max or an accessory listing.
-    if (actual & ACCESSORIES) - wanted:
-        return False
-    variants = {'pro', 'max', 'plus', 'mini', 'ultra', 'air', 'lite', 'fe', 'se'}
-    if (actual & variants) - wanted:
-        return False
-    return True
+    required = min(2, len(wanted))
+    return len(wanted & actual) >= required
 
 
 def validate_request(data):
