@@ -294,7 +294,7 @@ def main():
         print(json.dumps(service.run_once(backend)), flush=True)
         if args.once:
             return
-        time.sleep(6 * 60 * 60)
+        time.sleep(12 * 60 * 60)
 
 
 if __name__ == '__main__':
