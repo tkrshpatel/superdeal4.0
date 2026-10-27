@@ -59,7 +59,7 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: bash "${{ github.workspace }}/app/android/gradlew" -p "${{ github.workspace }}/app/android" connectedDebugAndroidTest
+          script: bash "${{ github.workspace }}/app/android/gradlew" -p "${{ github.workspace }}/app/android" :app:connectedDebugAndroidTest
       - name: Build unsigned release bundle for validation
         working-directory: app/android
         run: bash ./gradlew bundleRelease
