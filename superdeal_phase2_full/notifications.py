@@ -188,7 +188,9 @@ class Alerts:
             raise ValueError('This link is invalid or expired.')
 
     def run_once(self, backend, *, at=None):
-        """Reserved batches are never automatically resent after uncertain SMTP outcomes."""
+        """Dispatch is disabled unless explicitly enabled by the operator."""
+        if os.getenv('SUPERDEAL_ALERT_DISPATCH_ENABLED') != '1':
+            return {'confirmations': 0, 'batches': 0, 'failed': 0}
         test_at = at
         clock = (lambda: test_at) if test_at is not None else (lambda: datetime.now(UTC))
         at = clock()
