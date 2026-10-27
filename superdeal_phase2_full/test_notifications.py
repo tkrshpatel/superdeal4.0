@@ -236,3 +236,18 @@ def test_single_word_products_are_valid(name):
 
 def test_broad_product_matches_headphones_deal():
     assert matches('Headphones', 'Sony Wireless Headphones')
+
+
+def test_notification_window_is_5_minutes_59_seconds():
+    from backend import Backend
+    captured = []
+    class Collection:
+        def aggregate(self, pipeline):
+            captured.append(pipeline)
+            return []
+    backend = Backend(type('DB', (), {'fact_table': Collection()})())
+    assert list(backend.notification_candidates(at=AT, window=timedelta(seconds=359))) == []
+    match = next(stage['$match']['_publication.published_at']
+                 for stage in captured[0]
+                 if '_publication.published_at' in stage.get('$match', {}))
+    assert match == {'$gte': AT - timedelta(seconds=359), '$lte': AT}
