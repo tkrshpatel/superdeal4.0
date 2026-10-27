@@ -11,6 +11,23 @@ import mongomock
 import pytest
 from notifications import Alerts, Mailer, matches, validate_request
 
+@pytest.fixture(autouse=True)
+def enable_dispatch_in_isolated_tests(monkeypatch):
+    # Tests use mongomock and a fake mailer, never real SMTP.
+    monkeypatch.setenv('SUPERDEAL_ALERT_DISPATCH_ENABLED', '1')
+
+
+def test_dispatch_disabled_by_default(monkeypatch):
+    monkeypatch.delenv('SUPERDEAL_ALERT_DISPATCH_ENABLED', raising=False)
+    instance = service()
+    instance.subscribe(REQUEST, at=AT)
+    assert instance.run_once(Deals([{'id': '1', 'product_name': 'iPhone 17 Pro'}]), at=AT) == {
+        'confirmations': 0, 'batches': 0, 'failed': 0
+    }
+    assert instance.db.alert_confirmations.find_one({})['state'] == 'queued'
+    assert instance.mailer.messages == []
+
+
 AT = datetime(2026, 10, 25, 6, tzinfo=timezone.utc)
 REQUEST = {'product': 'iPhone 17 Pro', 'email': 'buyer@example.com', 'daily_limit': 2, 'days': 7, 'consent': True}
 
