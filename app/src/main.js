@@ -233,7 +233,8 @@ function renderStoreFilters() {
 
 function updateFeedControl(list) {
   const button = document.querySelector('#load-more-deals');
-  const errorVisible = !document.querySelector('#feed-status').hidden;
+  const feedStatus = document.querySelector('#feed-status');
+  const errorVisible = !feedStatus.hidden && feedStatus.dataset.keepPagination !== 'true';
   document.querySelector('#feed-pagination').hidden = errorVisible || (!state.loading && list.length <= state.visibleCount);
   button.disabled = state.loading;
   button.dataset.loading = String(state.loading);
@@ -293,6 +294,7 @@ async function load(sort = sortEl.value, {refresh = false} = {}) {
   const previousVisible = state.visibleCount;
   state.loading = true;
   const status = document.querySelector('#feed-status');
+  delete status.dataset.keepPagination;
   status.hidden = true;
   status.textContent = '';
   updateFeedControl(localFilter(state.deals));
@@ -332,6 +334,7 @@ async function load(sort = sortEl.value, {refresh = false} = {}) {
   } catch {
     if (request !== feedRequest) return false;
     if (shown || state.deals.length) {
+      status.dataset.keepPagination = String(refresh);
       status.hidden = false;
       status.innerHTML = refresh ? 'Couldn’t refresh. Showing previously loaded deals. <button class="filter" data-retry>Try again</button>' : 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
     } else {
@@ -461,6 +464,10 @@ document.querySelector('#load-more-deals').addEventListener('click', () => {
   render(localFilter(state.deals), {keepPage:true});
   const next = dealsEl.querySelectorAll('.title-button')[before];
   next?.focus();
+});
+
+document.querySelector('#feed-status').addEventListener('click', e => {
+  if (e.target.closest('[data-retry]')) load(sortEl.value, {refresh:e.currentTarget.dataset.keepPagination === 'true'});
 });
 
 dealsEl.addEventListener('click', e => {

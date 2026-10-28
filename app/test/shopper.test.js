@@ -395,6 +395,14 @@ test('native pull refresh replaces the snapshot, preserving search, stores and v
   assert.equal(await w.refreshFeed(),false);
   assert.match(d.querySelector('.deal-card').textContent,/Headphones newest/);
   assert.match(d.querySelector('#feed-status').textContent,/previously loaded deals/);
+  assert.equal(d.querySelector('#feed-pagination').hidden,false);
+  d.querySelector('#load-more-deals').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,61);
+  w.fetch=async()=>({ok:true,json:async()=>({deals:first,has_more:false})});
+  d.querySelector('#feed-status [data-retry]').click();
+  await new Promise(r=>setTimeout(r,0));
+  assert.equal(d.querySelector('#feed-status').hidden,true);
+  assert.equal(d.querySelectorAll('.deal-card').length,60);
   dom.window.close();
 });
 
