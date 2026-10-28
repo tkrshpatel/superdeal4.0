@@ -397,3 +397,16 @@ test('native pull refresh replaces the snapshot, preserving search, stores and v
   assert.match(d.querySelector('#feed-status').textContent,/previously loaded deals/);
   dom.window.close();
 });
+
+test('pull refresh retains a selected category even when its deals leave the latest window',async()=>{
+  const dom=await setup(false,true),w=dom.window,d=w.document;
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'old',product_name:'Audio deal',category:'Audio',merchant:'Amazon'}]})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
+  const category=d.querySelector('#category-filter');category.value='Audio';category.dispatchEvent(new w.Event('change'));
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'new',product_name:'Kitchen deal',category:'Kitchen',merchant:'Amazon'}]})});
+  assert.equal(await w.refreshFeed(),true);
+  assert.equal(category.value,'Audio');
+  assert.equal(d.querySelectorAll('.deal-card').length,0);
+  assert.match(d.querySelector('.empty').textContent,/No fresh deals match/);
+  dom.window.close();
+});

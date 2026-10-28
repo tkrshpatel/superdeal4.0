@@ -309,6 +309,7 @@ async function load(sort = sortEl.value, {refresh = false} = {}) {
       ['category-filter', [...new Set(state.deals.map(d=>d.category).filter(Boolean))].sort(), 'All categories']
     ]) {
       const el = document.getElementById(id), previous = el.value;
+      if (refresh && previous && !values.includes(previous)) values.push(previous);
       el.innerHTML = `<option value="">${label}</option>` + values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
       if (values.includes(previous)) el.value = previous;
       if (id === 'category-filter') {el.closest('label').hidden = values.length === 0;el.closest('.browse-controls').hidden=values.length===0;}
