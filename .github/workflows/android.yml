@@ -1,5 +1,8 @@
 name: Android App
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, 'phase-*']
@@ -9,6 +12,7 @@ on:
 jobs:
   android:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: app
@@ -35,6 +39,11 @@ jobs:
         run: if [ ! -d android ]; then npx cap add android; fi
       - name: Sync web assets
         run: npx cap sync android
+      - name: Test web app
+        run: npm test
+      - name: Test affiliate redirect and app-routing safety
+        working-directory: app/android
+        run: bash ./gradlew :app:testDebugUnitTest
       - name: Build debug APK
         working-directory: app/android
         run: bash ./gradlew assembleDebug
@@ -43,3 +52,22 @@ jobs:
         with:
           name: superdeal-debug-apk
           path: app/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Enable emulator acceleration
+        run: sudo chmod a+rw /dev/kvm
+      - name: Test dynamic system-bar spacing on Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          script: bash "${{ github.workspace }}/app/android/gradlew" -p "${{ github.workspace }}/app/android" :app:connectedDebugAndroidTest
+      - name: Build unsigned release bundle for validation
+        working-directory: app/android
+        run: bash ./gradlew bundleRelease
+      - name: Upload unsigned release bundle (sign before Play upload)
+        uses: actions/upload-artifact@v4
+        with:
+          name: superdeals-UNSIGNED-release-aab
+          path: app/android/app/build/outputs/bundle/release/app-release.aab

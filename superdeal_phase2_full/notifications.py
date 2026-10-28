@@ -85,6 +85,33 @@ class AlertBudget:
             return count < 12
 
 
+class NotificationRequests:
+    """Store consented preferences; the separate opt-in worker handles delivery."""
+    def __init__(self, db):
+        self.collection = db.notification_table
+
+    def setup(self):
+        self.collection.create_index([('status', 1), ('ds', -1)])
+        self.collection.create_index('email')
+
+    def save(self, data, *, at=None):
+        product, email, cap, days = validate_request(data)
+        at = at or datetime.now(UTC)
+        enabled = os.getenv('SUPERDEAL_NOTIFICATIONS_ENABLED') == '1'
+        key = digest(email + '\n' + ' '.join(tokens(product)))
+        # Repeated submits update the same request instead of creating duplicates.
+        self.collection.update_one({'_id': key}, {
+            '$set': {'ds': at, 'updated_at': at, 'product': product, 'email': email,
+                     'daily_limit': cap, 'days': days, 'status': 'active' if enabled else 'saved',
+                     'expires_at': at + timedelta(days=days),
+                     'consent': True, 'consent_at': at,
+                     'consent_version': 'deal-alerts-v1', 'source': 'website',
+                     'email_verified': False, 'delivery_enabled': enabled},
+            '$setOnInsert': {'created_at': at},
+            '$inc': {'submission_count': 1},
+        }, upsert=True)
+
+
 class Mailer:
     """Dry-run by default. Preview files are private and never served by the API."""
     def __init__(self):
@@ -131,12 +158,16 @@ class Alerts:
         self.mailer = mailer or Mailer()
 
     def setup(self):
-        self.db.deal_alerts.create_index([('email', 1), ('status', 1), ('expires_at', 1)])
-        self.db.deal_alerts.create_index('confirm_hash', unique=True, sparse=True)
-        self.db.deal_alerts.create_index('stop_hash', unique=True, sparse=True)
-        self.db.deal_alerts.create_index([('status', 1), ('next_due', 1)])
+        self.setup_indexes(self.db)
+
+    @staticmethod
+    def setup_indexes(db):
+        db.deal_alerts.create_index([('email', 1), ('status', 1), ('expires_at', 1)])
+        db.deal_alerts.create_index('confirm_hash', unique=True, sparse=True)
+        db.deal_alerts.create_index('stop_hash', unique=True, sparse=True)
+        db.deal_alerts.create_index([('status', 1), ('next_due', 1)])
         for name in ('deal_alerts', 'alert_confirmations', 'alert_deliveries'):
-            self.db[name].create_index('purge_at', expireAfterSeconds=0)
+            db[name].create_index('purge_at', expireAfterSeconds=0)
 
     def subscribe(self, data, *, at=None):
         product, email, cap, days = validate_request(data)

@@ -102,8 +102,8 @@ def test_existing_fact_recovers_discount_from_saved_converted_message_without_wr
     assert fields['offer_facts']['discount_kind']=='exact'
     assert db.fact_table.find_one({})==before
 
-@pytest.mark.parametrize('pct,kind,expected',[(75,'exact',False),(75.1,'exact',True),(80,'up_to',False),(100,'exact',True)])
-def test_hot_uses_verified_exact_discount(pct,kind,expected):
+@pytest.mark.parametrize('pct,kind,expected',[(59.99,'exact',False),(60,'exact',True),(60,'up_to',True),(85,'up_to',True),(59,'up_to',False),(101,'exact',False),(100,'exact',True)])
+def test_hot_uses_sixty_percent_including_up_to(pct,kind,expected):
     from offer_evidence import is_hot
     assert is_hot({'discount_pct':pct,'discount_kind':kind}) is expected
 
@@ -344,3 +344,9 @@ def test_elaris_four_product_prices_including_semicolon():
 def test_generic_rows_do_not_promote_benefits_or_reference_prices(quote):
     from offer_evidence import priced_link_rows
     assert priced_link_rows(quote+' : '+LINK)=={}
+
+
+@pytest.mark.parametrize('price,expected', [(400,True),(400.01,False),(399,True)])
+def test_hot_calculated_discount_uses_unrounded_sixty_percent(price,expected):
+    from offer_evidence import is_hot
+    assert is_hot({'current_price':price,'mrp':1000}) is expected

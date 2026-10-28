@@ -1,4 +1,5 @@
 """Phase 2: real local MongoDB, no Telegram/EarnKaro/Ollama calls."""
+from fixture_link_ids import as_link_ids
 import json
 import os
 import threading
@@ -25,7 +26,7 @@ def backend():
 
 
 def product(url):
-    return {'product_name': 'Sony headset', 'brand': 'Sony', 'ecommerce_platform': 'Amazon',
+    return {'product_name': 'Sony headset '+url.rsplit('/',1)[-1], 'brand': 'Sony', 'ecommerce_platform': 'Amazon',
             'deal_price': 999, 'original_price': 1999, 'discount_percentage': 50,
             'affiliate_urls': [url], 'confidence': 95, 'issues': []}
 
@@ -35,6 +36,7 @@ def configure(b, urls):
     b.converter = lambda _: {'response_text': text, 'response_payload': {'data': text}}
     b.llm = lambda _: {'products': [product(u) for u in urls], 'unassigned_urls': [],
                        'message_issues': [], 'analysis_summary': 'fixture'}
+    b.llm = as_link_ids(b.llm, lambda: b.converter('fixture')['response_text'])
 
 
 def test_parallel_ingest_is_idempotent(backend):

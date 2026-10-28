@@ -5,10 +5,11 @@ import hmac
 import json
 import os
 from datetime import datetime, timezone, timedelta
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler
 from urllib.parse import parse_qs, urlsplit
 
 from backend import connect
+from http_security import safe_destination, RequestBudget, client_identity, BoundedHTTPServer
 
 
 def _integer(values, key, default, maximum):
@@ -46,14 +47,47 @@ def _legacy_deal(product, metadata=None):
     }
 
 
-def make_handler(backend, *, admin_token=None):
+def make_handler(backend, *, admin_token=None, request_budget=None):
     """Inject backend for isolated tests; no connection created on import."""
     token = admin_token if admin_token is not None else os.getenv('SUPERDEAL_ADMIN_TOKEN', '')
 
-    from notifications import Alerts, AlertBudget
+    from notifications import Alerts, AlertBudget, NotificationRequests
     alert_budget = AlertBudget()
+    budget = request_budget or RequestBudget()
 
     class Handler(BaseHTTPRequestHandler):
+        server_version = 'SuperDeals'
+        sys_version = ''
+
+        def setup(self):
+            super().setup()
+            self.connection.settimeout(10)
+
+        def end_headers(self):
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Referrer-Policy', 'no-referrer')
+            self.send_header('X-Frame-Options', 'DENY')
+            self.send_header('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'")
+            super().end_headers()
+
+        def log_message(self, format, *args):
+            # No email/token/affiliate/query data in HTTP access logs.
+            return
+
+        def _peer(self):
+            return client_identity(self.client_address[0], self.headers)
+
+        def do_HEAD(self):
+            return self.do_GET()
+
+        def _limited(self):
+            self.send_response(429)
+            self.send_header('Retry-After', '30')
+            self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+
+
         def _send(self, code, payload):
             # Authenticated admin diagnostics retain provenance; shopper routes do not.
             if not self.path.startswith('/api/v1/admin/'):
@@ -64,14 +98,20 @@ def make_handler(backend, *, admin_token=None):
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.send_header('Content-Length', str(len(data)))
             self.send_header('Cache-Control', 'no-store')
-            self.send_header('X-Content-Type-Options', 'nosniff')
             self.end_headers()
-            self.wfile.write(data)
+            if self.command != 'HEAD':
+                self.wfile.write(data)
 
         def do_GET(self):
-            url = urlsplit(self.path)
+            if not budget.allow(self._peer()):
+                return self._limited()
+            if len(self.path) > 4096:
+                return self._send(414, {'error': 'request_too_long'})
             try:
-                params = parse_qs(url.query, keep_blank_values=True)
+                url = urlsplit(self.path)
+                params = parse_qs(url.query, keep_blank_values=True, max_num_fields=16)
+                if any(len(values) != 1 or len(values[0]) > 512 for values in params.values()):
+                    raise ValueError('Invalid parameters')
                 if url.path == '/health':
                     backend.db.command('ping')
                     return self._send(200, {'status': 'ok'})
@@ -105,7 +145,9 @@ def make_handler(backend, *, admin_token=None):
                         if set(params) & {'q', 'merchant', 'min_price', 'max_price', 'sort'}:
                             return self._send(400, {'error': 'unsupported_legacy_filters'})
                         page = backend.published_page(limit=limit, offset=offset)
-                    return self._send(200, {'deals': [_legacy_deal(x, backend.public_metadata(x['id']) if hasattr(backend, 'public_metadata') else None) for x in page['items']],
+                    metadata = (backend.public_metadata_many([x['id'] for x in page['items']])
+                                if hasattr(backend, 'public_metadata_many') else None)
+                    return self._send(200, {'deals': [_legacy_deal(x, metadata.get(x['id']) if metadata is not None else backend.public_metadata(x['id']) if hasattr(backend, 'public_metadata') else None) for x in page['items']],
                                             'counts': backend.deal_window_counts() if hasattr(backend, 'deal_window_counts') else None,
                                             'fresh_window_hours': 24 if hasattr(backend, 'public_metadata') else None, 'has_more': page['has_more'], 'as_of': page.get('as_of'), 'next_offset': page.get('next_offset')})
                 if url.path.startswith('/deals/') and url.path.endswith('/price-history'):
@@ -123,9 +165,10 @@ def make_handler(backend, *, admin_token=None):
                     if not hasattr(backend, 'affiliate_destination'):
                         return self._send(404, {'error': 'not_found'})
                     destination = backend.affiliate_destination(deal_id)
-                    if destination is None:
+                    if not safe_destination(destination):
                         return self._send(404, {'error': 'not_found'})
-                    backend.record_affiliate_click(deal_id)
+                    if self.command == 'GET':
+                        backend.record_affiliate_click(deal_id)
                     self.send_response(302)
                     self.send_header('Location', destination)
                     self.send_header('Cache-Control', 'no-store')
@@ -170,7 +213,7 @@ def make_handler(backend, *, admin_token=None):
                     return self._send(200, {'items': docs})
                 return self._send(404, {'error': 'not_found'})
             except ValueError as exc:
-                return self._send(400, {'error': 'bad_request', 'detail': str(exc)})
+                return self._send(400, {'error': 'bad_request', 'detail': 'Invalid request parameters.'})
             except Exception:
                 # Do not leak stack traces or secrets in HTTP responses.
                 import logging
@@ -178,12 +221,17 @@ def make_handler(backend, *, admin_token=None):
                 return self._send(500, {'error': 'internal_error'})
 
         def do_POST(self):
-            path = urlsplit(self.path).path
+            try:
+                path = urlsplit(self.path).path
+            except ValueError:
+                return self._send(400, {'error': 'bad_request'})
+            if len(self.path) > 4096:
+                return self._send(414, {'error': 'request_too_long'})
             if path not in ('/api/v1/alerts', '/api/v1/alerts/confirm', '/api/v1/alerts/stop'):
                 return self._send(405, {'error': 'method_not_allowed'})
             # Never log email addresses, request bodies or bearer links.
-            if not alert_budget.allow(self.client_address[0]):
-                return self._send(429, {'error': 'Too many requests. Please try again later.'})
+            if not alert_budget.allow(self._peer()):
+                return self._limited()
             origin = self.headers.get('Origin')
             allowed = {value.strip().rstrip('/') for value in os.getenv('SUPERDEAL_ALERT_ORIGINS', '').split(',') if value.strip()}
             if origin and origin not in allowed:
@@ -206,13 +254,15 @@ def make_handler(backend, *, admin_token=None):
                 if len(raw) != length:
                     raise ValueError('Incomplete request.')
                 data = json.loads(raw)
-                service = Alerts(backend.db)
-                # Indexes are idempotent; no pipeline startup is required for signup.
-                service.setup()
                 if path == '/api/v1/alerts':
-                    service.subscribe(data)
-                    return self._send(202, {'status': 'accepted', 'email_mode': service.mailer.mode,
-                        'message': 'Request saved. Confirm your email to activate alerts.'})
+                    requests = NotificationRequests(backend.db)
+                    requests.setup()
+                    requests.save(data)
+                    return self._send(202, {'status': 'saved', 'email_mode': 'store-only',
+                        'message': 'Your notification request has been saved.'})
+                # Preserve old confirmation/stop links; new intake creates no mail queue.
+                service = Alerts(backend.db)
+                service.setup()
                 if not isinstance(data, dict) or set(data) != {'token'}:
                     raise ValueError('This link is invalid or expired.')
                 success = service.confirm(data['token']) if path.endswith('/confirm') else service.stop(data['token'])
@@ -236,9 +286,14 @@ def main():
         raise RuntimeError('Remote HTTP bind requires explicit SUPERDEAL_ALLOW_REMOTE_HTTP=1 and TLS reverse proxy')
     if not os.getenv('SUPERDEAL_ADMIN_TOKEN', '').strip():
         raise RuntimeError('SUPERDEAL_ADMIN_TOKEN must be configured before API startup')
+    if os.getenv('SUPERDEAL_PRODUCTION') == '1':
+        from http_security import production_errors
+        errors = production_errors(host)
+        if errors:
+            raise RuntimeError('; '.join(errors))
     backend = connect()
-    backend.setup()
-    server = ThreadingHTTPServer((host, port), make_handler(backend))
+    backend.setup_public()
+    server = BoundedHTTPServer((host, port), make_handler(backend))
     print(f'SuperDeal API: http://{host}:{port}')
     server.serve_forever()
 

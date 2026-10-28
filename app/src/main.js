@@ -1,3 +1,7 @@
+import { API_BASE, apiFetch } from './api-bridge.js';
+import { mountPullRefresh } from './pull-refresh.js';
+import { openShopLink } from './shop-link.js';
+import { registerPlugin } from '@capacitor/core';
 import { fetchDealWindow } from './deal-feed.js';
 import { mountDealAlerts } from './deal-alerts.js';
 import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
@@ -8,18 +12,28 @@ import { Browser } from '@capacitor/browser';
 
 const IS_NATIVE = Capacitor.isNativePlatform();
 document.documentElement.classList.toggle('native-app', IS_NATIVE);
-const API_BASE = (globalThis.__SUPERDEAL_API__ || '').replace(/\/$/, '');
 const API = (path) => `${API_BASE}${path}`;
 
-function openDeal(id) {
-  const url = API('/go/' + encodeURIComponent(String(id)));
-  if (IS_NATIVE) {
-    // Open outside the embedded WebView. The OS/browser handles supported app links.
-    Browser.open({url}).catch(() => { window.location.href = url; });
-  } else {
-    window.open(url, '_blank', 'noopener');
+const DealOpener = IS_NATIVE ? registerPlugin('DealOpener') : null;
+let openingShop = false;
+async function openDeal(id) {
+  if (openingShop) return;
+  openingShop = true;
+  if (IS_NATIVE) {toast.textContent='Opening deal…';toast.classList.add('show');}
+  try {
+    await openShopLink(API('/go/' + encodeURIComponent(String(id))), {
+      native:IS_NATIVE, handoff:options=>DealOpener.open(options),
+      browse:options=>Browser.open(options), webOpen:url=>window.open(url,'_blank','noopener,noreferrer')
+    });
+  } catch {
+    toast.textContent='Couldn’t open this deal. Please try again.';
+    toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000);
+  } finally {
+    openingShop = false;
+    if (toast.textContent === 'Opening deal…') toast.classList.remove('show');
   }
 }
+
 
 
 const FILTERS = [
@@ -109,11 +123,13 @@ app.innerHTML = `
 
   <div id="selected-stores" class="selected-stores" role="group" aria-label="Selected stores" hidden></div>
   <section id="deals" class="deal-grid" aria-live="polite"></section>
-  <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="filter" type="button">Show more deals</button></div>
+  <div id="feed-pagination" class="feed-pagination" hidden><button id="load-more-deals" class="feed-more-button" type="button" aria-live="polite"><span class="feed-more-label">Show more deals</span><span class="feed-more-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M6 13l6 6 6-6"/></svg></span></button></div>
+  <div id="feed-status" class="feed-status" role="status" aria-live="polite" hidden></div>
 </main>
 <footer class="site-footer" aria-label="Copyright and disclaimer">
   <div class="footer-heading">
     <span>© 2026 SuperDeals. All rights reserved.</span>
+    <a href="/privacy.html">Privacy</a>
     <a href="mailto:superdeals.helpdesk@gmail.com">Contact: superdeals.helpdesk@gmail.com</a>
   </div>
   <p><strong>Disclaimer:</strong> SuperDeals shares deal information and links to third-party retailers. Prices, availability, discounts, coupon eligibility and delivery charges may change. Check prices and offer conditions on the retailer’s website before buying. Purchases, payments, delivery, returns and warranties are handled by the retailer.</p>
@@ -136,7 +152,7 @@ const hotCount = document.querySelector('#hot-count');
 const money = v => v == null ? 'View price at website' : `₹${Number(v).toLocaleString('en-IN')}`;
 const displayMerchant = displayRetailer;
 const displayTitle = d => shopperText(d.product_name) || shopperText(d.page_title) || 'SuperDeals Find';
-const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https?:\/\//i.test(d.image_url);
+const hasImage = d => !!d.image_url && !privateText.test(d.image_url) && !/placeholder/i.test(d.image_url) && /^https:\/\//i.test(d.image_url);
 const offerType = d => priceFacts(d).current !== null ? 'Product deal' : 'Offer';
 function discountLabel(d) {
   const pct=priceFacts(d).discount;
@@ -228,15 +244,26 @@ function renderStoreFilters() {
   selected.innerHTML=[...state.merchants].map(name=>`<button class="selected-store" data-remove-store="${esc(name)}" aria-label="Remove ${esc(name)} filter">${esc(name)} <span aria-hidden="true">×</span></button>`).join('')+(state.merchants.size?'<button id="clear-selected-stores" type="button">Clear all stores</button>':'');
 }
 
+function updateFeedControl(list) {
+  const button = document.querySelector('#load-more-deals');
+  const feedStatus = document.querySelector('#feed-status');
+  const errorVisible = !feedStatus.hidden && feedStatus.dataset.keepPagination !== 'true';
+  document.querySelector('#feed-pagination').hidden = errorVisible || (!state.loading && list.length <= state.visibleCount);
+  button.disabled = state.loading;
+  button.dataset.loading = String(state.loading);
+  button.setAttribute('aria-busy', String(state.loading));
+  button.querySelector('.feed-more-label').textContent = state.loading ? 'Loading...' : 'Show more deals';
+}
+
 function render(list, {keepPage = false} = {}) {
   if (!keepPage) state.visibleCount = 24;
-  document.querySelector('#feed-pagination').hidden = list.length <= state.visibleCount;
+  updateFeedControl(list);
   renderStoreFilters();
   const counts=state.counts;
   freshCount.textContent = counts ? `${counts.fresh_30m.toLocaleString('en-IN')}/${counts.total_24h.toLocaleString('en-IN')}` : '—/—';
   hotCount.textContent = state.deals.filter(isHotDeal).length;
   if (!list.length) {
-    dealsEl.innerHTML = '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
+    dealsEl.innerHTML = state.loading ? '<div class="empty"><strong>Checking the remaining deals…</strong></div>' : '<div class="empty"><div>✦</div><strong>No fresh deals match this.</strong><p>Try another search or filter.</p></div>';
     return;
   }
   dealsEl.innerHTML = list.slice(0, state.visibleCount).map(card).join('');
@@ -271,14 +298,24 @@ function localFilter(list) {
   return result;
 }
 
-let feedRequest = 0;
-async function load(sort = sortEl.value) {
+let feedRequest = 0, feedController;
+async function load(sort = sortEl.value, {refresh = false, onInitialBatch, firstPageSize = 48} = {}) {
   const request = ++feedRequest;
+  feedController?.abort();
+  const controller = feedController = new AbortController();
+  let shown = false, pending, initialBatchReady = false;
+  const previousVisible = state.visibleCount;
   state.loading = true;
-  dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
-  try {
-    const payload = await fetchDealWindow(API, sort);
+  const status = document.querySelector('#feed-status');
+  delete status.dataset.keepPagination;
+  status.hidden = true;
+  status.textContent = '';
+  updateFeedControl(localFilter(state.deals));
+  if (!state.deals.length) dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
+  const applyPage = payload => {
     if (request !== feedRequest) return;
+    state.loading = !!payload.has_more;
+    status.hidden = true;
     state.deals = payload.deals || [];
     const counts=payload.counts;
     state.counts = counts && Number.isInteger(counts.fresh_30m) && Number.isInteger(counts.total_24h) && counts.fresh_30m >= 0 && counts.total_24h >= counts.fresh_30m ? counts : null;
@@ -287,18 +324,48 @@ async function load(sort = sortEl.value) {
       ['category-filter', [...new Set(state.deals.map(d=>d.category).filter(Boolean))].sort(), 'All categories']
     ]) {
       const el = document.getElementById(id), previous = el.value;
+      if (refresh && previous && !values.includes(previous)) values.push(previous);
       el.innerHTML = `<option value="">${label}</option>` + values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
       if (values.includes(previous)) el.value = previous;
       if (id === 'category-filter') {el.closest('label').hidden = values.length === 0;el.closest('.browse-controls').hidden=values.length===0;}
     }
-    render(localFilter(state.deals));
+    render(localFilter(state.deals), {keepPage:shown || refresh});
+    shown = true;
+    if (!initialBatchReady && (state.deals.length >= 60 || !payload.has_more)) {
+      initialBatchReady = true;
+      onInitialBatch?.();
+    }
+  };
+  const acceptPage = payload => {
+    if (refresh) pending = payload;
+    else applyPage(payload);
+  };
+  try {
+    await fetchDealWindow(API, sort, apiFetch, {signal:controller.signal, onPage:acceptPage, firstPageSize});
+    if (request !== feedRequest) return false;
+    if (refresh && pending) {
+      state.visibleCount = previousVisible;
+      applyPage({...pending, has_more:false});
+    }
+    return true;
   } catch {
-    if (request !== feedRequest) return;
-    document.querySelector('#feed-pagination').hidden = true;
-    dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
-    state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
+    if (request !== feedRequest) return false;
+    if (shown || state.deals.length) {
+      status.dataset.keepPagination = String(refresh);
+      status.hidden = false;
+      status.innerHTML = refresh ? 'Couldn’t refresh. Showing previously loaded deals. <button class="filter" data-retry>Try again</button>' : 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
+    } else {
+      status.hidden = true;
+      document.querySelector('#feed-pagination').hidden = true;
+      dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
+      state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
+    }
+    return false;
   } finally {
-    if (request === feedRequest) state.loading = false;
+    if (request === feedRequest) {
+      state.loading = false;
+      updateFeedControl(localFilter(state.deals));
+    }
   }
 }
 
@@ -307,7 +374,7 @@ function setFilter(id) {
   document.querySelectorAll('[data-filter]').forEach(b => {b.classList.toggle('active', b.dataset.filter === id);b.setAttribute('aria-pressed', String(b.dataset.filter === id));});
   const titles = {
     latest:['JUST IN','Latest deals'],
-    hot:['OVER 50% OFF','Hot deals'],
+    hot:["WHAT’S COOKING!!!",'Hot deals'],
     drops:['COMPARE & SAVE','Offers with savings'],
     under499:['BUDGET FINDS','Under ₹499'],
     discount:['BIG SAVINGS','50%+ off'],
@@ -340,12 +407,12 @@ function showDetail(id) {
       <div class="eyebrow">${esc(merchant)} · ${esc(offerType(d))}</div>
       <h2 id="detail-title">${esc(title)}</h2>
       ${priceMarkup(d)}
-      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT · New in 30 minutes · Over 75% off</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
+      <div class="insights">${isHotDeal(d)?'<span>🔥 HOT</span>':''}${d.has_coupon?'<span>Coupon required at checkout</span>':''}${d.has_card_offer?'<span>Bank offer: confirm eligibility at retailer</span>':''}</div>
       ${termsMarkup(d)}
       ${shopperText(d.description)?`<p class="offer-description">${esc(shopperText(d.description))}</p>`:''}
       <button class="notify-product" type="button" data-notify-product="${esc(title)}">Get notified about this product</button>
       <div class="detail-meta">${d.last_seen_at?`<span>Posted ${esc(age(d.last_seen_at))}</span>`:''}${d.last_verified_at?`<span>Price checked ${esc(age(d.last_verified_at))}</span>`:''}</div>
-      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
+      <a class="detail-cta" data-detail-go="${esc(d.id)}" href="${esc(API('/go/' + d.id))}" target="_blank" rel="noopener noreferrer">${merchant==='SuperDeals Find'?'Get deal':`Shop ${esc(merchant)}`} ↗</a>
     </div>`;
   applyImageFallbacks(detail);
   detail.classList.remove('hidden');
@@ -366,15 +433,35 @@ searchEl.addEventListener('input', () => {
   render(localFilter(state.deals));
 });
 clearEl.addEventListener('click', () => { searchEl.value=''; state.query=''; clearEl.classList.add('hidden'); render(localFilter(state.deals)); searchEl.focus(); });
-document.querySelector('#reset-filters').addEventListener('click', () => {
+function clearFeedFilters() {
   searchEl.value=''; state.query=''; clearEl.classList.add('hidden');
   document.querySelector('#merchant-filter').value='';
   state.merchants.clear();
   document.querySelector('#store-search').value='';
   document.querySelector('#category-filter').value='';
   setFilter('latest');
-  load('newest');
-});
+
+}
+document.querySelector('#reset-filters').addEventListener('click', () => {clearFeedFilters();load('newest');});
+
+function interruptFeed() {
+  const interrupted = state.loading;
+  ++feedRequest; // Invalidate pending callbacks before aborting the HTTP promise.
+  feedController?.abort();
+  state.loading = false;
+  updateFeedControl(localFilter(state.deals));
+  return interrupted;
+}
+
+function refreshLanding({onInitialBatch} = {}) {
+  state.deals = [];
+  state.counts = null;
+  state.visibleCount = 24;
+  clearFeedFilters();
+  window.scrollTo(0,0);
+  return load('newest', {onInitialBatch, firstPageSize:60}); // First 60 ready; continue remaining pages.
+}
+
 const storePicker=document.querySelector('#store-picker');
 function closeStorePicker() {storePicker.open=false;document.querySelector('#store-summary').focus();}
 function clearStoreFilters() {
@@ -414,6 +501,10 @@ document.querySelector('#load-more-deals').addEventListener('click', () => {
   render(localFilter(state.deals), {keepPage:true});
   const next = dealsEl.querySelectorAll('.title-button')[before];
   next?.focus();
+});
+
+document.querySelector('#feed-status').addEventListener('click', e => {
+  if (e.target.closest('[data-retry]')) load(sortEl.value, {refresh:e.currentTarget.dataset.keepPagination === 'true'});
 });
 
 dealsEl.addEventListener('click', e => {
@@ -460,8 +551,9 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDetail(
   } });
 document.querySelector('.brand-mark').addEventListener('click', e => { e.preventDefault(); setFilter('latest'); });
 
-mountDealAlerts({api: API, product: () => state.query});
+mountDealAlerts({api: API, fetcher: apiFetch, product: () => state.query});
 
 if (!IS_NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if (IS_NATIVE) mountPullRefresh({refresh: refreshLanding, onPullStart: interruptFeed, onCancel: interrupted => {if (interrupted) load(sortEl.value);}});
 if (IS_NATIVE) SplashScreen.hide().catch(()=>{});
 load();

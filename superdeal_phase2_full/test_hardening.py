@@ -1,4 +1,5 @@
 """Hardening tests against an isolated, disposable local MongoDB database."""
+from fixture_link_ids import as_link_ids
 import os
 from uuid import uuid4
 import pytest
@@ -19,7 +20,7 @@ def backend():
         client.close()
 
 def product(url):
-    return {'product_name':'Sony headset','brand':'Sony','ecommerce_platform':'Amazon',
+    return {'product_name':'Sony headset '+url.rsplit('/',1)[-1],'brand':'Sony','ecommerce_platform':'Amazon',
             'deal_price':999,'original_price':1999,'discount_percentage':50,
             'affiliate_urls':[url],'confidence':95,'issues':[]}
 
@@ -27,6 +28,7 @@ def configure(backend, *products):
     content = '\n'.join(p['affiliate_urls'][0] for p in products)
     backend.converter = lambda _: {'response_text':content, 'response_payload':{'data':content}}
     backend.llm = lambda _: {'products':list(products), 'unassigned_urls':[], 'message_issues':[], 'analysis_summary':'test'}
+    backend.llm = as_link_ids(backend.llm, lambda: backend.converter('fixture')['response_text'])
 
 def test_interrupted_processing_becomes_failed_without_retry(backend):
     raw_id = backend.ingest('@fixture', '1', 'sample')

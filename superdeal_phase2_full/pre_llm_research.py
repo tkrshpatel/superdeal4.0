@@ -4,6 +4,8 @@ Only runs when SUPERDEAL_PRE_LLM_RESEARCH=1. Source pages are untrusted.
 """
 from __future__ import annotations
 
+from superdeal.browser_pacing import pause_before_navigation
+
 import json
 import re
 from urllib.parse import urlsplit
@@ -175,6 +177,7 @@ def research_message(earnkaro_message, *, browser=None, max_links=12):
                 records[url]['status'] = 'UNSAFE_URL'
                 continue
             try:
+                pause_before_navigation()
                 response = page.goto(url, wait_until='domcontentloaded', timeout=15000)
                 if not safe_url(page.url):
                     records[url]['status'] = 'UNSAFE_REDIRECT'

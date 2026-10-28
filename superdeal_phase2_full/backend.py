@@ -15,6 +15,7 @@ from uuid import uuid4
 import requests
 from pymongo import MongoClient, ASCENDING
 from pymongo.errors import PyMongoError, DuplicateKeyError
+from deal_exclusions import excluded_deal, EXCLUDED_DOMAIN
 
 LOG = logging.getLogger('superdeal.mongo')
 URL_RE = re.compile(r'https?://[^\s<>"\']+')
@@ -113,6 +114,13 @@ class Backend:
         self._deal_terms_cache = OrderedDict()
         self._offer_fact_lock = threading.Lock()
 
+    def setup_public(self):
+        """Public API creates only click/alert indexes, never worker source data."""
+        self.db.deal_clicks.create_index([('deal_id', ASCENDING), ('clicked_at', -1)])
+        from notifications import Alerts, NotificationRequests
+        Alerts.setup_indexes(self.db)
+        NotificationRequests(self.db).setup()
+
     def setup(self):
         self.db.raw.create_index([('channel', ASCENDING), ('message_id', ASCENDING)], unique=True)
         self.db.ek_raw.create_index('raw_id', unique=True)
@@ -164,17 +172,31 @@ class Backend:
             # Concurrent duplicate insert; unique index is authoritative.
             result = None
         raw = self.db.raw.find_one({'channel': channel, 'message_id': str(message_id)})
+        blocked = excluded_deal(raw['text'])
+        exclusion = {'skip_reason': 'EXCLUDED_DOMAIN'} if blocked else {}
         try:
             self.db.pipeline_status.update_one({'raw_id': raw['_id']}, {'$setOnInsert': {
-                'raw_id': raw['_id'], 'status': 'PENDING', 'current_stage': 'TELEGRAM',
+                'raw_id': raw['_id'], 'status': 'SKIPPED' if blocked else 'PENDING', 'current_stage': 'TELEGRAM',
                 'products_extracted': 0, 'products_published': 0,
-                'created_at': now(), 'updated_at': now()}}, upsert=True)
+                'created_at': now(), 'updated_at': now(), **exclusion}}, upsert=True)
         except DuplicateKeyError:
             # Another worker initialized this status concurrently.
             pass
         if result is not None and result.upserted_id is not None:
             self.log(raw['_id'], 'TELEGRAM', 'INFO', 'INGESTED')
+            if blocked:
+                self.log(raw['_id'], 'TELEGRAM', 'INFO', 'DEAL_SKIPPED',
+                         details={'reason': 'EXCLUDED_DOMAIN', 'domain': EXCLUDED_DOMAIN})
         return raw['_id']
+
+    def _skip_excluded_deal(self, raw_id, stage):
+        self.db.pipeline_status.update_one(
+            {'raw_id': raw_id, 'status': {'$in': ['PENDING', 'PROCESSING']}},
+            {'$set': {'status': 'SKIPPED', 'current_stage': stage,
+                      'skip_reason': 'EXCLUDED_DOMAIN', 'products_extracted': 0,
+                      'products_published': 0, 'updated_at': now()}})
+        self.log(raw_id, stage, 'INFO', 'DEAL_SKIPPED',
+                 details={'reason': 'EXCLUDED_DOMAIN', 'domain': EXCLUDED_DOMAIN})
 
     def _transition(self, raw_id, stage):
         result = self.db.pipeline_status.update_one(
@@ -289,12 +311,18 @@ class Backend:
             raw = self.db.raw.find_one({'_id': raw_id})
             if raw is None:
                 raise ValueError('Missing raw message')
+            if excluded_deal(raw['text']):
+                self._skip_excluded_deal(raw_id, 'TELEGRAM')
+                return 0
             self.log(raw_id, stage, 'INFO', 'STAGE_STARTED')
             converted = self.converter(raw['text'])
             if not isinstance(converted, dict) or not isinstance(converted.get('response_text'), str) or not converted['response_text'].strip():
                 raise ValueError('Invalid EarnKaro conversion response')
             self.db.ek_raw.insert_one({'raw_id': raw_id, 'response_text': converted['response_text'],
                                        'response_payload': converted.get('response_payload'), 'created_at': now()})
+            if excluded_deal(converted['response_text']):
+                self._skip_excluded_deal(raw_id, stage)
+                return 0
             self.log(raw_id, stage, 'INFO', 'CONVERTED')
             # Experiment: collect merchant page evidence before LLM, without
             # rewriting any EarnKaro URL or changing the default pipeline.
@@ -652,6 +680,57 @@ class Backend:
         for doc in self.db.fact_table.aggregate(pipeline):
             yield {'id': str(doc['_id']), **doc['product'], **self._offer_fields(doc)}
 
+    def public_metadata_many(self, deal_ids):
+        """Resolve one page with three DB queries, rather than three per card.
+
+        Recheck the committed publication pair; never trust IDs supplied by callers.
+        Price evidence and source precedence use the same resolver as single cards.
+        """
+        from bson import ObjectId
+        from bson.errors import InvalidId
+        from offer_evidence import is_hot
+        ids = []
+        for value in deal_ids:
+            try:
+                ids.append(ObjectId(value))
+            except (InvalidId, TypeError):
+                continue
+        if not ids:
+            return {}
+        facts = list(self.db.fact_table.find({'_id': {'$in': ids}},
+            {'raw_id': 1, 'publication_id': 1, 'product': 1, 'offer_facts': 1}))
+        publications = {
+            (s['raw_id'], s.get('publication_id')): s
+            for s in self.db.pipeline_status.find(
+                {'raw_id': {'$in': [f['raw_id'] for f in facts]}, 'status': 'PUBLISHED'},
+                {'raw_id': 1, 'publication_id': 1, 'published_at': 1})
+        }
+        current = now()
+        cutoff = current - timedelta(hours=24)
+        clicks = {d['_id']: d['count'] for d in self.db.deal_clicks.aggregate([
+            {'$match': {'deal_id': {'$in': [str(f['_id']) for f in facts]},
+                        'clicked_at': {'$gte': cutoff}}},
+            {'$group': {'_id': '$deal_id', 'count': {'$sum': 1}}},
+        ])}
+        result = {}
+        for fact in facts:
+            status = publications.get((fact['raw_id'], fact.get('publication_id')))
+            if status is None:
+                continue
+            published_at = status.get('published_at')
+            if published_at is not None and published_at.tzinfo is None:
+                published_at = published_at.replace(tzinfo=timezone.utc)
+            evidence = self._offer_fields(fact).get('offer_facts')
+            if evidence is None:
+                product = fact.get('product') or {}
+                evidence = {'current_price': product.get('deal_price'), 'mrp': product.get('original_price')}
+            result[str(fact['_id'])] = {
+                'published_at': published_at, 'click_count': clicks.get(str(fact['_id']), 0),
+                'hot': bool(published_at and current-timedelta(hours=4) <= published_at <= current and is_hot(evidence)),
+                'fresh_window_hours': 24, 'fresh': bool(published_at and published_at >= cutoff),
+            }
+        return result
+
     def public_metadata(self, deal_id):
         """Derived only from committed publication and observed click records.
 
@@ -685,18 +764,16 @@ class Backend:
             product = fact.get('product') or {}
             evidence = {'current_price': product.get('deal_price'), 'mrp': product.get('original_price')}
         return {'published_at': published_at, 'click_count': clicks,
-                'hot': bool(published_at and now() - timedelta(minutes=30) <= published_at <= now() and is_hot(evidence)), 'fresh_window_hours': 24,
+                'hot': bool(published_at and now() - timedelta(hours=4) <= published_at <= now() and is_hot(evidence)), 'fresh_window_hours': 24,
                 'fresh': bool(published_at and published_at >= cutoff)}
 
     def affiliate_destination(self, deal_id):
         """Return an exact, validated published affiliate URL; never rewrite it."""
-        from urllib.parse import urlsplit
+        from http_security import safe_destination
         item = self.published_offer_by_id(deal_id)
         if not item: return None
         for url in item.get('affiliate_urls') or []:
-            if not isinstance(url, str): continue
-            parsed = urlsplit(url)
-            if parsed.scheme in ('https', 'http') and parsed.hostname and not parsed.username and not parsed.password and not any(c in url for c in '\r\n'):
+            if safe_destination(url):
                 return url
         return None
 

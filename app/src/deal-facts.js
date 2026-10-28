@@ -13,11 +13,10 @@ export function isHotDeal(d) {
   const timestamp=d.published_at??d.last_seen_at;
   const posted=typeof timestamp==='string'?Date.parse(timestamp.replace(' ','T')):NaN;
   const age=Date.now()-posted;
-  if(!Number.isFinite(posted)||age<0||age>30*60*1000)return false;
+  if(!Number.isFinite(posted)||age<0||age>4*60*60*1000)return false;
   const f=evidence(d),{current,mrp}=priceFacts(d);
-  if(f?.discount_kind==='up_to')return false;
-  if(f?.discount_kind==='exact')return Number(f.discount_pct)>75&&Number(f.discount_pct)<=100;
-  return current!==null&&mrp!==null&&current<mrp/4;
+  if(['exact','up_to'].includes(f?.discount_kind))return Number(f.discount_pct)>=60&&Number(f.discount_pct)<=100;
+  return current!==null&&mrp!==null&&current<=mrp*0.4;
 }
 
 // Normalize labels only. Affiliate URLs are never changed or used to guess a store.

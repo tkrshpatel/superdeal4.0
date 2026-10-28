@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SuperDeal</string>
-    <string name="title_activity_main">SuperDeal</string>
+    <string name="app_name">SuperDeals</string>
+    <string name="title_activity_main">SuperDeals</string>
     <string name="package_name">com.superdeal.app</string>
     <string name="custom_url_scheme">com.superdeal.app</string>
 </resources>

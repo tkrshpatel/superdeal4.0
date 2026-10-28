@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .browser_pacing import pause_before_navigation
+
 import logging
 import re
 from urllib.parse import urlparse
@@ -92,6 +94,7 @@ def fetch_browser_metadata(url: str, *, timeout_ms: int = 15000) -> WebMetadata:
                 ),
             )
             page = context.new_page()
+            pause_before_navigation()
             page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
             try:
                 page.wait_for_load_state("networkidle", timeout=min(timeout_ms, 5000))

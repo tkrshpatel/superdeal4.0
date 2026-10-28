@@ -1,2 +1,2 @@
-pytest>=8,<9
+pytest>=9.0.3,<10
 Telethon~=1.45.0

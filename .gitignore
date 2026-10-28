@@ -34,3 +34,9 @@ llm_*benchmark*.json
 
 # Contains recipient data and private confirmation/unsubscribe links.
 data/notification-previews/
+
+# Private Android upload keys and local SDK paths
+*.jks
+*.keystore
+app/android/local.properties
+app/android/**/build/

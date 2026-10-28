@@ -1,0 +1,51 @@
+# Imported only by the production entry points. Serve app/dist, never the repo.
+root * {$SUPERDEAL_DIST}
+encode zstd gzip
+header {
+	-Server
+	Strict-Transport-Security "max-age=31536000"
+	X-Content-Type-Options "nosniff"
+	X-Frame-Options "DENY"
+	Referrer-Policy "no-referrer"
+	Permissions-Policy "camera=(), microphone=(), geolocation=()"
+	Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https: data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'; upgrade-insecure-requests"
+}
+request_body {
+	max_size 4KB
+}
+@html path / /index.html /sw.js /manifest.webmanifest
+header @html Cache-Control "no-store"
+@hashed path /assets/*
+header @hashed Cache-Control "public, max-age=31536000, immutable"
+route {
+	@blocked path /.env /.env.* /.git /.git/* /.venv /.venv/* /data /data/* /sessions /sessions/* /api/v1/admin /api/v1/admin/*
+	respond @blocked 404
+	@dotfiles path_regexp private (?i)(?:^|/)\.(?:git|env|venv)(?:[./]|$)
+	respond @dotfiles 404
+	@badmethod not method GET HEAD POST
+	respond @badmethod 405
+	@badpost {
+		method POST
+		not path /api/v1/alerts /api/v1/alerts/confirm /api/v1/alerts/stop
+	}
+	respond @badpost 405
+	@api path /deals /deals/* /go/* /health /api/v1/deals /api/v1/deals/* /api/v1/alerts /api/v1/alerts/confirm /api/v1/alerts/stop
+	handle @api {
+		reverse_proxy {$SUPERDEAL_API_UPSTREAM} {
+			# Overwrite, never append, client-supplied identity headers.
+			header_up X-Superdeal-Proxy-Token {$SUPERDEAL_PROXY_TOKEN}
+			header_up X-Superdeal-Client-IP {client_ip}
+			header_down -Server
+			transport http {
+				dial_timeout 3s
+				response_header_timeout 30s
+			}
+		}
+	}
+	handle {
+		try_files {path} /index.html
+		file_server {
+			hide .git .env .env.* *.map
+		}
+	}
+}

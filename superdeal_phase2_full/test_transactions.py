@@ -1,4 +1,5 @@
 """Real MongoDB replica-set transaction tests; no external provider calls."""
+from fixture_link_ids import as_link_ids
 from uuid import uuid4
 import os
 import pytest
@@ -16,7 +17,7 @@ Backend = _module.Backend
 URLS = ['https://example.com/first', 'https://example.com/second']
 
 def product(url):
-    return {'product_name': 'Test item', 'brand': None, 'ecommerce_platform': None,
+    return {'product_name': 'Test item '+url.rsplit('/',1)[-1], 'brand': None, 'ecommerce_platform': None,
             'deal_price': 100, 'original_price': 200, 'discount_percentage': 50,
             'affiliate_urls': [url], 'confidence': 95, 'issues': []}
 
@@ -33,6 +34,7 @@ def backend():
     b.converter = lambda _: {'response_text': text, 'response_payload': {'data': text}}
     b.llm = lambda _: {'products': [product(u) for u in URLS], 'unassigned_urls': [],
                        'message_issues': [], 'analysis_summary': 'test'}
+    b.llm = as_link_ids(b.llm, lambda: b.converter('fixture')['response_text'])
     try:
         yield b
     finally:

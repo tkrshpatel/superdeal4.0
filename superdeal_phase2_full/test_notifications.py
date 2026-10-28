@@ -15,6 +15,12 @@ AT = datetime(2026, 10, 25, 6, tzinfo=timezone.utc)
 REQUEST = {'product': 'iPhone 17 Pro', 'email': 'buyer@example.com', 'daily_limit': 2, 'days': 7, 'consent': True}
 
 
+@pytest.fixture(autouse=True)
+def fixed_mongo_ttl_clock(monkeypatch):
+    # mongomock TTL uses wall time even when the service receives an explicit at.
+    monkeypatch.setattr(mongomock, 'utcnow', lambda: AT.replace(tzinfo=None))
+
+
 class Preview:
     origin = 'https://superdeals.example'
     mode = 'dry-run'
@@ -162,6 +168,13 @@ def test_http_submission_private_and_origin_body_limits(monkeypatch):
         assert post('/api/v1/alerts', b'x' * 4097)[0] == 413
         assert post('/api/v1/alerts', b'{}')[0] == 400
         assert post('/api/v1/alerts', b'not json')[0] == 400
+        saved = db.notification_table.find_one({})
+        assert saved['product'] == REQUEST['product'] and saved['status'] == 'saved'
+        assert saved['ds'] and saved['email'] == REQUEST['email']
+        assert db.alert_confirmations.count_documents({}) == 0
+        assert payload['email_mode'] == 'store-only'
+        # Previously issued legacy links still work; intake does not create these.
+        Alerts(db).subscribe(REQUEST)
         token = db.alert_confirmations.find_one({})['confirm_token']
         assert post('/api/v1/alerts/confirm', json.dumps({'token': token}).encode())[0] == 200
         assert db.deal_alerts.find_one({})['status'] == 'active'

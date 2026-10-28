@@ -2,14 +2,23 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.superdeal.app',
-  appName: 'SuperDeal',
+  appName: 'SuperDeals',
   webDir: 'dist',
-  bundledWebRuntime: false,
+  server: {
+    androidScheme: 'https',
+    cleartext: false,
+  },
   android: {
     backgroundColor: '#f7f7f5',
-    cleartext: true,
+    allowMixedContent: false,
   },
   plugins: {
+    SystemBars: {
+      insetsHandling: 'css',
+      initialViewportFitValueHint: 'cover',
+      style: 'LIGHT',
+      hidden: false,
+    },
     SplashScreen: {
       launchAutoHide: true,
       launchFadeOutDuration: 0,
