@@ -29,7 +29,7 @@ export function mountPullRefresh({refresh, onPullStart = () => false, onCancel =
     if (event.touches.length !== 1 || !top() || blocked() ||
       event.target.closest('input,textarea,select,button,a,summary,[role="dialog"],[contenteditable="true"]')) return;
     gesture = {x:event.touches[0].clientX,y:event.touches[0].clientY,active:false,
-      threshold:Math.max(1,(win.visualViewport?.height || win.innerHeight || doc.documentElement.clientHeight)/2)};
+      threshold:Math.max(1,(win.visualViewport?.height || win.innerHeight || doc.documentElement.clientHeight)/4)};
   }
   async function sync(token) {
     snapBack();
@@ -79,7 +79,7 @@ export function mountPullRefresh({refresh, onPullStart = () => false, onCancel =
     if (dy >= gesture.threshold) {
       const token = generation;
       gesture = null;
-      void sync(token); // Start at half-screen, without waiting for finger release.
+      void sync(token); // Start at quarter-screen, without waiting for finger release.
     }
   }
   doc.addEventListener('touchstart',onStart,{passive:true});

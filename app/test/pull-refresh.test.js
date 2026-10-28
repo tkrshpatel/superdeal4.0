@@ -15,7 +15,7 @@ function setup({refresh=async()=>true,onPullStart=()=>false,onCancel=()=>{},heig
   };
   return {dom,win,doc,touch};
 }
-test('page follows the pull with a downward arrow and sync starts at half-screen before release',async()=>{
+test('page follows the pull with a downward arrow and sync starts at quarter-screen before release',async()=>{
   let calls=0,stops=0,finish;
   const {dom,doc,touch}=setup({refresh:()=>{calls++;return new Promise(r=>{finish=r;});},onPullStart:()=>{stops++;return true;}});
   touch('touchstart',100,100);
@@ -25,20 +25,20 @@ test('page follows the pull with a downward arrow and sync starts at half-screen
   assert.equal(doc.documentElement.style.getPropertyValue('--pull-distance'),'40px');
   assert.ok(doc.querySelector('.pull-refresh-arrow'));
   assert.match(doc.querySelector('.pull-refresh-label').textContent,/Pull down to refresh/);
-  touch('touchmove',100,499);assert.equal(calls,0);
-  touch('touchmove',100,500);assert.equal(calls,1);
+  touch('touchmove',100,299);assert.equal(calls,0);
+  touch('touchmove',100,300);assert.equal(calls,1);
   assert.equal(doc.documentElement.style.getPropertyValue('--pull-distance'),'0px');
   assert.equal(doc.querySelector('.pull-refresh').dataset.loading,'true');
-  touch('touchend',100,500,{count:0});assert.equal(calls,1);
+  touch('touchend',100,300,{count:0});assert.equal(calls,1);
   finish(true);await Promise.resolve();await Promise.resolve();
   assert.match(doc.querySelector('.pull-refresh').textContent,/Deals updated/);
   dom.window.close();
 });
-test('half-screen threshold adapts to viewport height',()=>{
+test('quarter-screen threshold adapts to viewport height',()=>{
   for(const height of [600,1000]){
     let calls=0;const {dom,touch}=setup({height,refresh:async()=>{calls++;}});
-    touch('touchstart',10,10);touch('touchmove',10,10+height/2-1);assert.equal(calls,0);
-    touch('touchmove',10,10+height/2);assert.equal(calls,1);dom.window.close();
+    touch('touchstart',10,10);touch('touchmove',10,10+height/4-1);assert.equal(calls,0);
+    touch('touchmove',10,10+height/4);assert.equal(calls,1);dom.window.close();
   }
 });
 test('short or cancelled pulls resume an interrupted feed without a landing refresh',()=>{
@@ -60,7 +60,7 @@ test('ordinary scrolling, horizontal swipes, controls, modals and multitouch do 
 test('another pull can immediately supersede an in-flight sync without stale indicator updates',async()=>{
   let calls=0,stops=0;const finishes=[];
   const {dom,doc,touch}=setup({refresh:()=>{calls++;return new Promise(r=>finishes.push(r));},onPullStart:()=>{stops++;return true;}});
-  const pull=()=>{touch('touchstart',10,10);touch('touchmove',10,410);};
+  const pull=()=>{touch('touchstart',10,10);touch('touchmove',10,210);};
   pull();pull();assert.equal(calls,2);assert.equal(stops,2);
   finishes[0](true);await Promise.resolve();await Promise.resolve();
   assert.equal(doc.querySelector('.pull-refresh').dataset.loading,'true');

@@ -94,7 +94,7 @@ public class ExampleInstrumentedTest {
     }
 
     @Test
-    public void realPullRevealsArrowAndRefreshesLandingAtHalfScreen() throws Exception {
+    public void realPullRevealsArrowAndRefreshesLandingAtQuarterScreen() throws Exception {
         try (ActivityScenario<MainActivity> scenario = ActivityScenario.launch(MainActivity.class)) {
             scenario.onActivity(activity -> activity.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT));
             checkLogo(scenario, false);
@@ -114,7 +114,7 @@ public class ExampleInstrumentedTest {
             float x=bounds[0], y=bounds[1];
             pointer(down, android.view.MotionEvent.ACTION_DOWN, x, y);
             for (int step=1;step<=12;step++) {
-                pointer(down, android.view.MotionEvent.ACTION_MOVE, x, y+bounds[2]*step/48f);
+                pointer(down, android.view.MotionEvent.ACTION_MOVE, x, y+bounds[2]*step/96f);
                 Thread.sleep(16);
             }
             JSONObject pulled=evaluate(scenario, "(function(){const p=document.querySelector('.pull-refresh');return {distance:parseFloat(document.documentElement.style.getPropertyValue('--pull-distance'))||0,shown:!!p&&!p.hidden,label:p?p.textContent:''};})()");
@@ -123,12 +123,12 @@ public class ExampleInstrumentedTest {
             assertTrue(pulled.getString("label").contains("Pull down to refresh"));
             assertEquals("old query", evaluate(scenario, "({query:document.querySelector('#search').value})").getString("query"));
             for (int step=13;step<=27;step++) {
-                pointer(down, android.view.MotionEvent.ACTION_MOVE, x, y+bounds[2]*step/48f);
+                pointer(down, android.view.MotionEvent.ACTION_MOVE, x, y+bounds[2]*step/96f);
                 Thread.sleep(16);
             }
             // Verify sync starts at the threshold, while the finger is still down.
             JSONObject refreshed=evaluate(scenario, "({query:document.querySelector('#search').value,latest:document.querySelector('[data-filter=latest]').getAttribute('aria-pressed')})");
-            pointer(down, android.view.MotionEvent.ACTION_UP, x, y+bounds[2]*27/48f);
+            pointer(down, android.view.MotionEvent.ACTION_UP, x, y+bounds[2]*27/96f);
             assertEquals("", refreshed.getString("query"));
             assertEquals("true", refreshed.getString("latest"));
         }

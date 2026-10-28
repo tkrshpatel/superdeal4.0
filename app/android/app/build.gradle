@@ -7,8 +7,8 @@ android {
         applicationId "com.superdeal.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode = (System.getenv("SUPERDEAL_ANDROID_VERSION_CODE") ?: "4").toInteger()
-        versionName = (System.getenv("SUPERDEAL_ANDROID_VERSION_NAME") ?: "1.0.3")
+        versionCode = (System.getenv("SUPERDEAL_ANDROID_VERSION_CODE") ?: "5").toInteger()
+        versionName = (System.getenv("SUPERDEAL_ANDROID_VERSION_NAME") ?: "1.0.4")
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
