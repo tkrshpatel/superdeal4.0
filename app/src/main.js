@@ -416,15 +416,35 @@ searchEl.addEventListener('input', () => {
   render(localFilter(state.deals));
 });
 clearEl.addEventListener('click', () => { searchEl.value=''; state.query=''; clearEl.classList.add('hidden'); render(localFilter(state.deals)); searchEl.focus(); });
-document.querySelector('#reset-filters').addEventListener('click', () => {
+function clearFeedFilters() {
   searchEl.value=''; state.query=''; clearEl.classList.add('hidden');
   document.querySelector('#merchant-filter').value='';
   state.merchants.clear();
   document.querySelector('#store-search').value='';
   document.querySelector('#category-filter').value='';
   setFilter('latest');
-  load('newest');
-});
+
+}
+document.querySelector('#reset-filters').addEventListener('click', () => {clearFeedFilters();load('newest');});
+
+function interruptFeed() {
+  const interrupted = state.loading;
+  ++feedRequest; // Invalidate pending callbacks before aborting the HTTP promise.
+  feedController?.abort();
+  state.loading = false;
+  updateFeedControl(localFilter(state.deals));
+  return interrupted;
+}
+
+function refreshLanding() {
+  state.deals = [];
+  state.counts = null;
+  state.visibleCount = 24;
+  clearFeedFilters();
+  window.scrollTo(0,0);
+  return load('newest'); // Stream first page immediately; continue remaining pages.
+}
+
 const storePicker=document.querySelector('#store-picker');
 function closeStorePicker() {storePicker.open=false;document.querySelector('#store-summary').focus();}
 function clearStoreFilters() {
@@ -517,6 +537,6 @@ document.querySelector('.brand-mark').addEventListener('click', e => { e.prevent
 mountDealAlerts({api: API, fetcher: apiFetch, product: () => state.query});
 
 if (!IS_NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
-if (IS_NATIVE) mountPullRefresh({refresh: () => load(sortEl.value, {refresh:true}), busy: () => state.loading});
+if (IS_NATIVE) mountPullRefresh({refresh: refreshLanding, onPullStart: interruptFeed, onCancel: interrupted => {if (interrupted) load(sortEl.value);}});
 if (IS_NATIVE) SplashScreen.hide().catch(()=>{});
 load();

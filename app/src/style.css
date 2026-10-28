@@ -339,3 +339,14 @@ html.native-app{
 .pull-refresh[data-loading="true"] .pull-refresh-spinner{animation:feed-spin .8s linear infinite}
 .pull-refresh[data-ready="true"]{border-color:#93ae6b}
 @media(prefers-reduced-motion:reduce){.pull-refresh[data-loading="true"] .pull-refresh-spinner{animation:none}}
+
+/* Drag the feed with the finger; reveal the arrow in the exposed space. */
+.native-app #app{transition:transform .18s ease}
+.native-app.pulling-feed #app{transform:translateY(var(--pull-distance,0px));transition:none;will-change:transform}
+.pull-refresh{flex-direction:column;gap:5px;top:calc(12px + var(--app-safe-top,0px));border:0;box-shadow:none;background:transparent;padding:8px 14px;color:#4c6240;text-align:center}
+.pull-refresh-arrow{flex-shrink:0}
+.pull-refresh .pull-refresh-spinner{display:none}
+.pull-refresh[data-loading="true"],.pull-refresh[data-finished="true"]{flex-direction:row;border:1px solid #dce4ce;background:#fbfff4;box-shadow:0 6px 24px #20301220}
+.pull-refresh[data-loading="true"] .pull-refresh-arrow,.pull-refresh[data-finished="true"] .pull-refresh-arrow{display:none}
+.pull-refresh[data-loading="true"] .pull-refresh-spinner{display:block}
+@media(prefers-reduced-motion:reduce){.native-app #app{transition:none}}

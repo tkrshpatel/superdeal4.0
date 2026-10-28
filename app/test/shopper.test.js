@@ -17,7 +17,8 @@ async function setup(fail=false, native=false) {
   w.displayRetailer = displayRetailer;
   w.Capacitor = {isNativePlatform:()=>native};
   w.SplashScreen = {hide:async()=>{}};
-  w.mountPullRefresh = ({refresh}) => {w.refreshFeed=refresh;};
+  w.mountPullRefresh = ({refresh,onPullStart,onCancel}) => {w.refreshFeed=refresh;w.startPull=onPullStart;w.cancelPull=onCancel;};
+  w.scrollTo = () => {w.scrollY=0;};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
   w.API_BASE = '';
   w.apiFetch = (...args) => w.fetch(...args);
@@ -373,48 +374,54 @@ test('effective source price uses normal price typography and a separate qualifi
   dom.window.close();
 });
 
-test('native pull refresh replaces the snapshot, preserving search, stores and visible page count',async()=>{
+test('native refresh resets to landing and displays the first batch before remaining pages finish',async()=>{
   const dom=await setup(false,true),w=dom.window,d=w.document;
-  const first=Array.from({length:60},(_,i)=>({id:'r'+i,product_name:'Headphones '+i,merchant:'Amazon'}));
-  w.fetch=async()=>({ok:true,json:async()=>({deals:first,has_more:false})});
-  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
-  d.querySelector('#search').value='Headphones';d.querySelector('#search').dispatchEvent(new w.Event('input'));
-  const merchant=d.querySelector('#merchant-filter');merchant.value='Amazon';merchant.dispatchEvent(new w.Event('change'));
-  d.querySelector('#load-more-deals').click();
-  assert.equal(d.querySelectorAll('.deal-card').length,48);
-  let finish;
-  w.fetch=()=>new Promise(resolve=>{finish=()=>resolve({ok:true,json:async()=>({deals:[{id:'new',product_name:'Headphones newest',merchant:'Amazon'},...first],has_more:false})});});
+  d.querySelector('#search').value='Washer';d.querySelector('#search').dispatchEvent(new w.Event('input'));
+  d.querySelector('[data-filter=saved]').click();
+  d.querySelector('#category-filter').value='Appliances';
+  let release;
+  const later=new Promise(resolve=>{release=resolve;});
+  const first=Array.from({length:48},(_,i)=>({id:'new'+i,product_name:'New product '+i,merchant:'Amazon'}));
+  w.fetch=async url=>{
+    if(!new URL(url,'https://superdeal.example').searchParams.has('offset')) return {ok:true,json:async()=>({deals:first,has_more:true,next_offset:48})};
+    await later;return {ok:true,json:async()=>({deals:[{id:'last',product_name:'Last product'}],has_more:false})};
+  };
+  w.startPull();
   const pending=w.refreshFeed();
-  assert.equal(d.querySelectorAll('.deal-card').length,48);
-  finish();assert.equal(await pending,true);
-  assert.equal(d.querySelector('#search').value,'Headphones');
-  assert.equal(d.querySelector('#merchant-filter').value,'Amazon');
-  assert.equal(d.querySelectorAll('.deal-card').length,48);
-  assert.match(d.querySelector('.deal-card').textContent,/Headphones newest/);
-  w.fetch=async()=>({ok:false});
-  assert.equal(await w.refreshFeed(),false);
-  assert.match(d.querySelector('.deal-card').textContent,/Headphones newest/);
-  assert.match(d.querySelector('#feed-status').textContent,/previously loaded deals/);
-  assert.equal(d.querySelector('#feed-pagination').hidden,false);
-  d.querySelector('#load-more-deals').click();
-  assert.equal(d.querySelectorAll('.deal-card').length,61);
-  w.fetch=async()=>({ok:true,json:async()=>({deals:first,has_more:false})});
-  d.querySelector('#feed-status [data-retry]').click();
+  assert.equal(d.querySelector('#search').value,'');
+  assert.equal(d.querySelector('[data-filter=latest]').getAttribute('aria-pressed'),'true');
+  assert.equal(d.querySelector('#category-filter').value,'');
   await new Promise(r=>setTimeout(r,0));
-  assert.equal(d.querySelector('#feed-status').hidden,true);
-  assert.equal(d.querySelectorAll('.deal-card').length,60);
+  assert.equal(d.querySelectorAll('.deal-card').length,24);
+  assert.match(d.querySelector('.deal-card').textContent,/New product/);
+  assert.equal(d.querySelector('.feed-more-label').textContent,'Loading...');
+  release();assert.equal(await pending,true);
+  assert.equal(d.querySelector('.feed-more-label').textContent,'Show more deals');
   dom.window.close();
 });
 
-test('pull refresh retains a selected category even when its deals leave the latest window',async()=>{
+test('starting a pull aborts the active request and stale results cannot replace refreshed cards',async()=>{
   const dom=await setup(false,true),w=dom.window,d=w.document;
-  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'old',product_name:'Audio deal',category:'Audio',merchant:'Amazon'}]})});
-  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
-  const category=d.querySelector('#category-filter');category.value='Audio';category.dispatchEvent(new w.Event('change'));
-  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'new',product_name:'Kitchen deal',category:'Kitchen',merchant:'Amazon'}]})});
+  let signal,finish;
+  w.fetch=async(url,options)=>{signal=options.signal;return new Promise(resolve=>{finish=resolve;});};
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));
+  assert.equal(signal.aborted,false);
+  assert.equal(w.startPull(),true);
+  assert.equal(signal.aborted,true);
+  w.fetch=async()=>({ok:true,json:async()=>({deals:[{id:'fresh',product_name:'Fresh landing product'}]})});
   assert.equal(await w.refreshFeed(),true);
-  assert.equal(category.value,'Audio');
-  assert.equal(d.querySelectorAll('.deal-card').length,0);
-  assert.match(d.querySelector('.empty').textContent,/No fresh deals match/);
+  finish({ok:true,json:async()=>({deals:[{id:'stale',product_name:'Stale product'}]})});
+  await new Promise(r=>setTimeout(r,0));
+  assert.match(d.querySelector('.deal-card').textContent,/Fresh landing product/);
+  assert.doesNotMatch(d.querySelector('#deals').textContent,/Stale product/);
+  dom.window.close();
+});
+
+test('cancelled pull resumes an interrupted initial fetch',async()=>{
+  const dom=await setup(false,true),w=dom.window,d=w.document;
+  let requests=0;
+  w.fetch=async()=>{requests++;return {ok:true,json:async()=>({deals:offers})};};
+  w.cancelPull(true);await new Promise(r=>setTimeout(r,0));
+  assert.ok(requests>0);assert.equal(d.querySelectorAll('.deal-card').length,3);
   dom.window.close();
 });
