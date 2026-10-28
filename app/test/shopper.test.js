@@ -9,13 +9,15 @@ const offers = [
   {id:'b',product_name:'Chocolate offer',merchant:'Flipkart',current_price:null,category:'Grocery'},
   {id:'c',product_name:'<script>bad()</script>',merchant:'amazon.in',current_price:299},
 ];
-async function setup(fail=false) {
+async function setup(fail=false, native=false) {
   const dom = new JSDOM('<div id="app"></div>',{url:'https://superdeal.example/',runScripts:'outside-only'});
   const w = dom.window;
   w.priceFacts = priceFacts;
   w.isHotDeal = isHotDeal;
   w.displayRetailer = displayRetailer;
-  w.Capacitor = {isNativePlatform:()=>false};
+  w.Capacitor = {isNativePlatform:()=>native};
+  w.SplashScreen = {hide:async()=>{}};
+  w.mountPullRefresh = ({refresh}) => {w.refreshFeed=refresh;};
   w.fetch = async()=> {if(fail) throw Error('offline'); return {ok:true,json:async()=>({deals:offers})};};
   w.API_BASE = '';
   w.apiFetch = (...args) => w.fetch(...args);
@@ -368,5 +370,30 @@ test('effective source price uses normal price typography and a separate qualifi
   assert.match(card.querySelector('.card-top').textContent,/Effective price/);
   card.querySelector('.title-button').click();
   assert.match(d.querySelector('#detail').textContent,/Effective price; apply/);
+  dom.window.close();
+});
+
+test('native pull refresh replaces the snapshot, preserving search, stores and visible page count',async()=>{
+  const dom=await setup(false,true),w=dom.window,d=w.document;
+  const first=Array.from({length:60},(_,i)=>({id:'r'+i,product_name:'Headphones '+i,merchant:'Amazon'}));
+  w.fetch=async()=>({ok:true,json:async()=>({deals:first,has_more:false})});
+  d.querySelector('#sort').dispatchEvent(new w.Event('change'));await new Promise(r=>setTimeout(r,0));
+  d.querySelector('#search').value='Headphones';d.querySelector('#search').dispatchEvent(new w.Event('input'));
+  const merchant=d.querySelector('#merchant-filter');merchant.value='Amazon';merchant.dispatchEvent(new w.Event('change'));
+  d.querySelector('#load-more-deals').click();
+  assert.equal(d.querySelectorAll('.deal-card').length,48);
+  let finish;
+  w.fetch=()=>new Promise(resolve=>{finish=()=>resolve({ok:true,json:async()=>({deals:[{id:'new',product_name:'Headphones newest',merchant:'Amazon'},...first],has_more:false})});});
+  const pending=w.refreshFeed();
+  assert.equal(d.querySelectorAll('.deal-card').length,48);
+  finish();assert.equal(await pending,true);
+  assert.equal(d.querySelector('#search').value,'Headphones');
+  assert.equal(d.querySelector('#merchant-filter').value,'Amazon');
+  assert.equal(d.querySelectorAll('.deal-card').length,48);
+  assert.match(d.querySelector('.deal-card').textContent,/Headphones newest/);
+  w.fetch=async()=>({ok:false});
+  assert.equal(await w.refreshFeed(),false);
+  assert.match(d.querySelector('.deal-card').textContent,/Headphones newest/);
+  assert.match(d.querySelector('#feed-status').textContent,/previously loaded deals/);
   dom.window.close();
 });

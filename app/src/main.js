@@ -1,4 +1,5 @@
 import { API_BASE, apiFetch } from './api-bridge.js';
+import { mountPullRefresh } from './pull-refresh.js';
 import { fetchDealWindow } from './deal-feed.js';
 import { mountDealAlerts } from './deal-alerts.js';
 import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
@@ -284,18 +285,19 @@ function localFilter(list) {
 }
 
 let feedRequest = 0, feedController;
-async function load(sort = sortEl.value) {
+async function load(sort = sortEl.value, {refresh = false} = {}) {
   const request = ++feedRequest;
   feedController?.abort();
   const controller = feedController = new AbortController();
-  let shown = false;
+  let shown = false, pending;
+  const previousVisible = state.visibleCount;
   state.loading = true;
   const status = document.querySelector('#feed-status');
   status.hidden = true;
   status.textContent = '';
   updateFeedControl(localFilter(state.deals));
   if (!state.deals.length) dealsEl.innerHTML = '<div class="skeleton-grid">' + Array.from({length:6}, () => '<div class="skeleton"></div>').join('') + '</div>';
-  const acceptPage = payload => {
+  const applyPage = payload => {
     if (request !== feedRequest) return;
     state.loading = !!payload.has_more;
     status.hidden = true;
@@ -311,22 +313,33 @@ async function load(sort = sortEl.value) {
       if (values.includes(previous)) el.value = previous;
       if (id === 'category-filter') {el.closest('label').hidden = values.length === 0;el.closest('.browse-controls').hidden=values.length===0;}
     }
-    render(localFilter(state.deals), {keepPage:shown});
+    render(localFilter(state.deals), {keepPage:shown || refresh});
     shown = true;
+  };
+  const acceptPage = payload => {
+    if (refresh) pending = payload;
+    else applyPage(payload);
   };
   try {
     await fetchDealWindow(API, sort, apiFetch, {signal:controller.signal, onPage:acceptPage});
+    if (request !== feedRequest) return false;
+    if (refresh && pending) {
+      state.visibleCount = previousVisible;
+      applyPage({...pending, has_more:false});
+    }
+    return true;
   } catch {
-    if (request !== feedRequest) return;
+    if (request !== feedRequest) return false;
     if (shown || state.deals.length) {
       status.hidden = false;
-      status.innerHTML = 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
+      status.innerHTML = refresh ? 'Couldn’t refresh. Showing previously loaded deals. <button class="filter" data-retry>Try again</button>' : 'Could not finish loading. Results may be incomplete. <button class="filter" data-retry>Try again</button>';
     } else {
       status.hidden = true;
       document.querySelector('#feed-pagination').hidden = true;
       dealsEl.innerHTML = '<div class="empty"><div>⚡</div><strong>We are warming up.</strong><p>We couldn’t load offers. Check your connection and try again.</p><button class="filter" data-retry>Try again</button></div>';
       state.counts=null; freshCount.textContent = '—/—'; hotCount.textContent = '—';
     }
+    return false;
   } finally {
     if (request === feedRequest) {
       state.loading = false;
@@ -496,5 +509,6 @@ document.querySelector('.brand-mark').addEventListener('click', e => { e.prevent
 mountDealAlerts({api: API, fetcher: apiFetch, product: () => state.query});
 
 if (!IS_NATIVE && 'serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(()=>{});
+if (IS_NATIVE) mountPullRefresh({refresh: () => load(sortEl.value, {refresh:true}), busy: () => state.loading});
 if (IS_NATIVE) SplashScreen.hide().catch(()=>{});
 load();

@@ -330,3 +330,12 @@ html.native-app{
   .native-app .filter-panel{padding:16px;border-radius:18px}
   .native-app .filter{min-height:40px;padding:9px 13px;font-size:12px}
 }
+
+/* Pull-to-refresh sits below the real status-bar/cutout inset. */
+.native-app body{overscroll-behavior-y:contain}
+.pull-refresh{position:fixed;z-index:65;top:calc(10px + var(--app-safe-top,0px));left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:9px;max-width:calc(100vw - 32px);padding:11px 16px;border:1px solid #dce4ce;border-radius:999px;background:#fbfff4;color:#344428;box-shadow:0 6px 24px #20301220;font:600 12px/1.4 system-ui;pointer-events:none}
+.pull-refresh[hidden]{display:none}
+.pull-refresh-spinner{width:17px;height:17px;flex-shrink:0;border:2px solid #dce6d2;border-top-color:#668445;border-radius:50%}
+.pull-refresh[data-loading="true"] .pull-refresh-spinner{animation:feed-spin .8s linear infinite}
+.pull-refresh[data-ready="true"]{border-color:#93ae6b}
+@media(prefers-reduced-motion:reduce){.pull-refresh[data-loading="true"] .pull-refresh-spinner{animation:none}}
