@@ -5,6 +5,8 @@ from the ORIGINAL Telegram message, never from EarnKaro-only URLs.
 """
 from __future__ import annotations
 
+from superdeal.browser_pacing import pause_before_navigation
+
 import ipaddress
 import inspect
 import re
@@ -207,6 +209,7 @@ def scrape_image(original_links, *, browser=None, detailed=False):
             if not safe_url(link):
                 continue
             try:
+                pause_before_navigation()
                 response = page.goto(link, wait_until='domcontentloaded', timeout=20000)
                 if not safe_url(page.url):
                     last_reason = 'UNSAFE_REDIRECT'
