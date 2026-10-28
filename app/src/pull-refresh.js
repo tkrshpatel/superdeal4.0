@@ -32,6 +32,7 @@ export function mountPullRefresh({refresh, onPullStart = () => false, onCancel =
       threshold:Math.max(1,(win.visualViewport?.height || win.innerHeight || doc.documentElement.clientHeight)/4)};
   }
   async function sync(token) {
+    let initialReady = false;
     snapBack();
     indicator.hidden = false;
     indicator.style.top = '';
@@ -39,14 +40,21 @@ export function mountPullRefresh({refresh, onPullStart = () => false, onCancel =
     indicator.dataset.loading = 'true';
     label.textContent = 'Syncing deals…';
     try {
-      const success = await refresh();
+      const success = await refresh({onInitialBatch: () => {
+        if (token !== generation) return;
+        initialReady = true;
+        indicator.dataset.loading = 'false';
+        indicator.hidden = true;
+      }});
       if (token !== generation) return;
+      if (initialReady) return;
       label.textContent = success === false ? 'Couldn’t sync. Pull down to retry.' : 'Deals updated';
     } catch {
       if (token !== generation) return;
+      if (initialReady) return;
       label.textContent = 'Couldn’t sync. Pull down to retry.';
     } finally {
-      if (token === generation) {
+      if (token === generation && !initialReady) {
         indicator.dataset.loading = 'false';
         indicator.dataset.finished = 'true';
         dismiss = win.setTimeout(()=>{indicator.hidden=true;},1800);

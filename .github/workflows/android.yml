@@ -41,6 +41,9 @@ jobs:
         run: npx cap sync android
       - name: Test web app
         run: npm test
+      - name: Test affiliate redirect and app-routing safety
+        working-directory: app/android
+        run: bash ./gradlew :app:testDebugUnitTest
       - name: Build debug APK
         working-directory: app/android
         run: bash ./gradlew assembleDebug

@@ -59,3 +59,15 @@ test('cancels obsolete pagination before requesting the next batch',async()=>{
   }, {signal:controller.signal,onPage:()=>controller.abort()}), {name:'AbortError'});
   assert.equal(calls,1);
 });
+
+test('refresh requests first 60 deals, then continues with normal page sizes',async()=>{
+  const limits=[];
+  const all=Array.from({length:109},(_,i)=>({id:String(i)}));
+  const result=await fetchDealWindow(p=>p,'newest',async url=>{
+    const params=new URL(url,'https://example.com').searchParams;
+    const limit=Number(params.get('limit')),offset=Number(params.get('offset')||0);
+    limits.push(limit);
+    return {ok:true,json:async()=>({deals:all.slice(offset,offset+limit),has_more:offset+limit<all.length,next_offset:offset+limit})};
+  },{firstPageSize:60});
+  assert.deepEqual(limits,[60,48,48]);assert.equal(result.deals.length,109);
+});

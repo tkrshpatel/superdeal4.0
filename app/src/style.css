@@ -350,3 +350,7 @@ html.native-app{
 .pull-refresh[data-loading="true"] .pull-refresh-arrow,.pull-refresh[data-finished="true"] .pull-refresh-arrow{display:none}
 .pull-refresh[data-loading="true"] .pull-refresh-spinner{display:block}
 @media(prefers-reduced-motion:reduce){.native-app #app{transition:none}}
+
+/* Smaller shop label; preserve the existing button dimensions. */
+.deal-card .get-deal{font-size:9px}
+.detail-cta{font-size:12px}

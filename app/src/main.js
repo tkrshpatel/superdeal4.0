@@ -1,5 +1,7 @@
 import { API_BASE, apiFetch } from './api-bridge.js';
 import { mountPullRefresh } from './pull-refresh.js';
+import { openShopLink } from './shop-link.js';
+import { registerPlugin } from '@capacitor/core';
 import { fetchDealWindow } from './deal-feed.js';
 import { mountDealAlerts } from './deal-alerts.js';
 import { priceFacts, displayRetailer, isHotDeal } from './deal-facts.js';
@@ -12,15 +14,26 @@ const IS_NATIVE = Capacitor.isNativePlatform();
 document.documentElement.classList.toggle('native-app', IS_NATIVE);
 const API = (path) => `${API_BASE}${path}`;
 
-function openDeal(id) {
-  const url = API('/go/' + encodeURIComponent(String(id)));
-  if (IS_NATIVE) {
-    // Open outside the embedded WebView. The OS/browser handles supported app links.
-    Browser.open({url}).catch(() => { window.location.href = url; });
-  } else {
-    window.open(url, '_blank', 'noopener,noreferrer');
+const DealOpener = IS_NATIVE ? registerPlugin('DealOpener') : null;
+let openingShop = false;
+async function openDeal(id) {
+  if (openingShop) return;
+  openingShop = true;
+  if (IS_NATIVE) {toast.textContent='Opening deal…';toast.classList.add('show');}
+  try {
+    await openShopLink(API('/go/' + encodeURIComponent(String(id))), {
+      native:IS_NATIVE, handoff:options=>DealOpener.open(options),
+      browse:options=>Browser.open(options), webOpen:url=>window.open(url,'_blank','noopener,noreferrer')
+    });
+  } catch {
+    toast.textContent='Couldn’t open this deal. Please try again.';
+    toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),2000);
+  } finally {
+    openingShop = false;
+    if (toast.textContent === 'Opening deal…') toast.classList.remove('show');
   }
 }
+
 
 
 const FILTERS = [
@@ -286,11 +299,11 @@ function localFilter(list) {
 }
 
 let feedRequest = 0, feedController;
-async function load(sort = sortEl.value, {refresh = false} = {}) {
+async function load(sort = sortEl.value, {refresh = false, onInitialBatch, firstPageSize = 48} = {}) {
   const request = ++feedRequest;
   feedController?.abort();
   const controller = feedController = new AbortController();
-  let shown = false, pending;
+  let shown = false, pending, initialBatchReady = false;
   const previousVisible = state.visibleCount;
   state.loading = true;
   const status = document.querySelector('#feed-status');
@@ -318,13 +331,17 @@ async function load(sort = sortEl.value, {refresh = false} = {}) {
     }
     render(localFilter(state.deals), {keepPage:shown || refresh});
     shown = true;
+    if (!initialBatchReady && (state.deals.length >= 60 || !payload.has_more)) {
+      initialBatchReady = true;
+      onInitialBatch?.();
+    }
   };
   const acceptPage = payload => {
     if (refresh) pending = payload;
     else applyPage(payload);
   };
   try {
-    await fetchDealWindow(API, sort, apiFetch, {signal:controller.signal, onPage:acceptPage});
+    await fetchDealWindow(API, sort, apiFetch, {signal:controller.signal, onPage:acceptPage, firstPageSize});
     if (request !== feedRequest) return false;
     if (refresh && pending) {
       state.visibleCount = previousVisible;
@@ -436,13 +453,13 @@ function interruptFeed() {
   return interrupted;
 }
 
-function refreshLanding() {
+function refreshLanding({onInitialBatch} = {}) {
   state.deals = [];
   state.counts = null;
   state.visibleCount = 24;
   clearFeedFilters();
   window.scrollTo(0,0);
-  return load('newest'); // Stream first page immediately; continue remaining pages.
+  return load('newest', {onInitialBatch, firstPageSize:60}); // First 60 ready; continue remaining pages.
 }
 
 const storePicker=document.querySelector('#store-picker');

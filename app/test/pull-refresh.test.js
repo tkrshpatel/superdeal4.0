@@ -67,3 +67,14 @@ test('another pull can immediately supersede an in-flight sync without stale ind
   finishes[1](false);await Promise.resolve();await Promise.resolve();
   assert.match(doc.querySelector('.pull-refresh').textContent,/Couldn’t sync/);dom.window.close();
 });
+
+test('sync indicator disappears at the initial milestone while later work remains pending',async()=>{
+  let ready,finish;
+  const {dom,doc,touch}=setup({refresh:({onInitialBatch})=>{ready=onInitialBatch;return new Promise(r=>{finish=r;});}});
+  touch('touchstart',10,10);touch('touchmove',10,210);
+  assert.equal(doc.querySelector('.pull-refresh').dataset.loading,'true');
+  ready();assert.equal(doc.querySelector('.pull-refresh').hidden,true);
+  finish(true);await Promise.resolve();await Promise.resolve();
+  assert.equal(doc.querySelector('.pull-refresh').hidden,true);
+  dom.window.close();
+});

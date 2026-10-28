@@ -8,6 +8,7 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        registerPlugin(DealOpenerPlugin.class);
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         // The app surface is light, even when the phone uses a dark system theme.

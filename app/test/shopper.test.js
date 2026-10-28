@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {JSDOM} from 'jsdom';
+import {openShopLink} from '../src/shop-link.js';
 import {priceFacts, displayRetailer, isHotDeal} from '../src/deal-facts.js';
 
 const offers = [
@@ -15,6 +16,9 @@ async function setup(fail=false, native=false) {
   w.priceFacts = priceFacts;
   w.isHotDeal = isHotDeal;
   w.displayRetailer = displayRetailer;
+  w.openShopLink = openShopLink;
+  w.registerPlugin = () => ({open:async()=>({opened:false})});
+  w.Browser = {open:async({url})=>{w.nativeBrowsed=url;}};
   w.Capacitor = {isNativePlatform:()=>native};
   w.SplashScreen = {hide:async()=>{}};
   w.mountPullRefresh = ({refresh,onPullStart,onCancel}) => {w.refreshFeed=refresh;w.startPull=onPullStart;w.cancelPull=onCancel;};
@@ -423,5 +427,29 @@ test('cancelled pull resumes an interrupted initial fetch',async()=>{
   w.fetch=async()=>{requests++;return {ok:true,json:async()=>({deals:offers})};};
   w.cancelPull(true);await new Promise(r=>setTimeout(r,0));
   assert.ok(requests>0);assert.equal(d.querySelectorAll('.deal-card').length,3);
+  dom.window.close();
+});
+
+test('sync milestone fires when the first 60 deals arrive while remaining pages continue loading',async()=>{
+  const dom=await setup(false,true),w=dom.window,d=w.document;
+  let finish,initialReady=0;
+  const later=new Promise(resolve=>{finish=resolve;});
+  const first=Array.from({length:60},(_,i)=>({id:'sixty'+i,product_name:'Product '+i,merchant:'Amazon'}));
+  w.fetch=async url=>{
+    const params=new URL(url,'https://superdeal.example').searchParams;
+    if(!params.has('offset')) {
+      assert.equal(params.get('limit'),'60');
+      return {ok:true,json:async()=>({deals:first,has_more:true,next_offset:60})};
+    }
+    assert.equal(params.get('limit'),'48');
+    await later;
+    return {ok:true,json:async()=>({deals:[{id:'extra',product_name:'More product'}],has_more:false})};
+  };
+  const pending=w.refreshFeed({onInitialBatch:()=>{initialReady++;}});
+  await new Promise(r=>setTimeout(r,0));
+  assert.equal(initialReady,1);
+  assert.equal(d.querySelectorAll('.deal-card').length,24);
+  assert.equal(d.querySelector('.feed-more-label').textContent,'Loading...');
+  finish();assert.equal(await pending,true);assert.equal(initialReady,1);
   dom.window.close();
 });

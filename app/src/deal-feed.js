@@ -1,10 +1,10 @@
 // Fetch the complete 24-hour window in bounded API pages, without a total-card cap.
 // UI pagination below this layer keeps the rendered grid small.
-export async function fetchDealWindow(api, sort, fetcher = fetch, {onPage, signal} = {}) {
+export async function fetchDealWindow(api, sort, fetcher = fetch, {onPage, signal, firstPageSize = 48} = {}) {
   const deals = [], seen = new Set();
   let offset = 0, snapshot, first;
   while (true) {
-    const params = new URLSearchParams({limit:'48', sort});
+    const params = new URLSearchParams({limit:String(offset === 0 ? firstPageSize : 48), sort});
     if (offset) params.set('offset', String(offset));
     if (snapshot) params.set('as_of', snapshot);
     signal?.throwIfAborted();
