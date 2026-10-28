@@ -41,13 +41,20 @@ public final class DealRedirects {
     }
     public static String retailerPackage(URI uri) {
         String host=uri.getHost();
-        if(hostIs(host,"amazon.in")||hostIs(host,"amazon.com")) return "com.amazon.mShop.android.shopping";
+        if(hostIs(host,"amazon.in")) return "in.amazon.mShop.android.shopping";
+        if(hostIs(host,"amazon.com")) return "com.amazon.mShop.android.shopping";
         if(hostIs(host,"flipkart.com")) return "com.flipkart.android";
         if(hostIs(host,"myntra.com")) return "com.myntra.android";
         if(hostIs(host,"ajio.com")) return "com.ril.ajio";
         if(hostIs(host,"nykaa.com")) return "com.fsn.nykaa";
         if(hostIs(host,"meesho.com")) return "com.meesho.supply";
         return null;
+    }
+    public static String[] retailerPackages(URI uri) {
+        String primary=retailerPackage(uri);
+        if(hostIs(uri.getHost(),"amazon.in")) return new String[]{"in.amazon.mShop.android.shopping","com.amazon.mShop.android.shopping"};
+        if(hostIs(uri.getHost(),"amazon.com")) return new String[]{"com.amazon.mShop.android.shopping","in.amazon.mShop.android.shopping"};
+        return primary==null?new String[0]:new String[]{primary};
     }
     public static Result resolve(String start,Transport transport) {
         URI current=URI.create(start);

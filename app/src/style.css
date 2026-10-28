@@ -352,5 +352,5 @@ html.native-app{
 @media(prefers-reduced-motion:reduce){.native-app #app{transition:none}}
 
 /* Smaller shop label; preserve the existing button dimensions. */
-.deal-card .get-deal{font-size:9px}
-.detail-cta{font-size:12px}
+.native-app .deal-card .get-deal{font-size:9px}
+.native-app .detail-cta{font-size:12px}

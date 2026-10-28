@@ -17,7 +17,7 @@ public class DealRedirectsTest {
         });
         assertEquals(destination,result.appUrl);assertEquals(affiliate,result.fallbackUrl);
         assertEquals(2,calls.size());
-        assertEquals("com.amazon.mShop.android.shopping",DealRedirects.retailerPackage(URI.create(destination)));
+        assertEquals("in.amazon.mShop.android.shopping",DealRedirects.retailerPackage(URI.create(destination)));
     }
     @Test public void unknownRetailerUsesAndroidHandlerWithoutFetchingItsPage() {
         int[] calls={0};
@@ -39,6 +39,10 @@ public class DealRedirectsTest {
     @Test public void spoofedDomainsNeverSelectRetailerPackages() {
         assertNull(DealRedirects.retailerPackage(URI.create("https://amazon.in.evil.example/x")));
         assertEquals("com.flipkart.android",DealRedirects.retailerPackage(URI.create("https://www.flipkart.com/product?affid=keep")));
+    }
+    @Test public void supportsIndiaAndGlobalAmazonApps() {
+        assertArrayEquals(new String[]{"in.amazon.mShop.android.shopping","com.amazon.mShop.android.shopping"},
+            DealRedirects.retailerPackages(URI.create("https://amazon.in/dp/x")));
     }
     @Test public void sourceMustBeOurTrackedRedirect() {
         try {DealRedirects.resolve("https://evil.example/go/abc",uri->{fail("Must not connect");return null;});fail("Must reject");}

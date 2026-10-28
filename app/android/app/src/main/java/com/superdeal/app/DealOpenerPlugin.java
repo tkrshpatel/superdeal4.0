@@ -43,13 +43,12 @@ public class DealOpenerPlugin extends Plugin {
                 boolean opened=false;
                 if(result.appUrl!=null) {
                     URI target=URI.create(result.appUrl);
-                    String retailerPackage=DealRedirects.retailerPackage(target);
-                    if(retailerPackage!=null) {
+                    for(String retailerPackage:DealRedirects.retailerPackages(target)) {
                         try {
                             Intent intent=new Intent(Intent.ACTION_VIEW,Uri.parse(result.appUrl));
                             intent.addCategory(Intent.CATEGORY_BROWSABLE);
                             intent.setPackage(retailerPackage);
-                            getActivity().startActivity(intent);opened=true;
+                            getActivity().startActivity(intent);opened=true;break;
                         } catch(ActivityNotFoundException|SecurityException ignored) {}
                     }
                     if(!opened && Build.VERSION.SDK_INT>=Build.VERSION_CODES.R) {
